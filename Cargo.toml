@@ -11,6 +11,20 @@ test = false
 doctest = false
 bench = false
 
+[[bin]]
+name = "oled_sh1106_hello_rust"
+path = "./src/bin/oled_sh1106_hello_rust.rs"
+test = false
+doctest = false
+bench = false
+
+[[bin]]
+name = "oled_ssd1306_hello_rust"
+path = "./src/bin/oled_ssd1306_hello_rust.rs"
+test = false
+doctest = false
+bench = false
+
 [dependencies]
 esp-bootloader-esp-idf = { version = "0.2.0", features = ["esp32"] }
 esp-hal = { version = "=1.0.0-rc.0", features = [
@@ -58,11 +72,14 @@ smoltcp = { version = "0.12.0", default-features = false, features = [
 ] }
 static_cell = "2.1.1"
 
-
-[profile.dev]
-# Rust debug is too slow.
-# For debug builds always builds with some optimization
-opt-level = "s"
+# oled display (ssd1306)
+ssd1306 = { version = "0.10", features = ["async"] }
+# oled display (sh1106)
+oled_async = { git = "https://github.com/techmccat/sh1106.git", branch = "master" }
+display-interface = { version = "0.5", features = [] }
+display-interface-i2c = { version = "0.5", features = [] }
+# draw text to oled display
+embedded-graphics = "0.8.1"
 
 [profile.release]
 codegen-units = 1        # LLVM can perform better optimizations using a single thread
