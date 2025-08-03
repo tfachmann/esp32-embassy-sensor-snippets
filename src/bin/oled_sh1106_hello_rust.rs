@@ -84,6 +84,7 @@ async fn main(spawner: Spawner) {
         .with_rotation(DisplayRotation::Rotate0)
         .connect(interface);
     let mut display: GraphicsMode<_, _> = raw_disp.into();
+    display.init().await.unwrap();
 
     // draw rust logo
     let im = ImageRawLE::new(include_bytes!("./rust.raw"), 64);
