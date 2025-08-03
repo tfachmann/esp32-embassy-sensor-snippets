@@ -1,6 +1,12 @@
-# ESP32 Sensor Tests
+# ESP32 Embassy Sensor Snippets
 
-Some simple tests for my esp32, built with Rust (`esp-rs` + `embassy`).
+Some sample snippets for esp32 board, built with Rust (`esp-rs` + `embassy`).
+
+References:
+- https://github.com/embassy-rs/embassy
+- https://github.com/esp-rs/esp-hal
+- https://github.com/rust-embedded-community
+- https://esp32.implrust.com/
 
 ## Compiling + Flashing
 
