@@ -8,11 +8,8 @@
 
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
-use embedded_graphics::mono_font::ascii::FONT_6X10;
-use embedded_graphics::mono_font::MonoTextStyleBuilder;
-use embedded_graphics::pixelcolor::BinaryColor;
+use embedded_graphics::image::ImageRawLE;
 use embedded_graphics::prelude::*;
-use embedded_graphics::text::Text;
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::time::Rate;
@@ -87,19 +84,8 @@ async fn main(spawner: Spawner) {
     .into_buffered_graphics_mode();
     display.init().await.unwrap();
 
-    let text_style = MonoTextStyleBuilder::new()
-        .font(&FONT_6X10)
-        .text_color(BinaryColor::On)
-        .build();
-
-    Text::with_baseline(
-        "Hello, Rust...\n  ...to ssd1306!",
-        Point::new(0, 16),
-        text_style,
-        embedded_graphics::text::Baseline::Top,
-    )
-    .draw(&mut display)
-    .unwrap();
+    let img = ImageRawLE::new(include_bytes!("./nyancat.raw"), 128);
+    img.draw(&mut display).unwrap();
 
     display.flush().await.unwrap();
 
