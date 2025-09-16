@@ -8,28 +8,23 @@
 
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
-use embedded_graphics::image::{Image, ImageRawLE};
-use embedded_graphics::mono_font::ascii::FONT_6X10;
-use embedded_graphics::mono_font::MonoTextStyleBuilder;
-use embedded_graphics::pixelcolor::BinaryColor;
+use embedded_graphics::image::ImageRawLE;
 use embedded_graphics::prelude::*;
-use embedded_graphics::text::{Baseline, Text};
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::time::Rate;
 use esp_hal::timer::timg::TimerGroup;
 use esp_println::logger::init_logger;
 use log::{error, info};
-use oled_async::builder::Builder;
-use oled_async::prelude::*;
+use ssd1306::mode::DisplayConfigAsync;
+use ssd1306::size::DisplaySize128x64;
+use ssd1306::{I2CDisplayInterface, Ssd1306Async};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
     error!("Program panicked!");
     loop {}
 }
-
-extern crate alloc;
 
 // This creates a default app-descriptor required by the esp-idf bootloader.
 // For more information see: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/app_image_format.html#application-description>
@@ -58,7 +53,6 @@ async fn counter() {
 #[esp_hal_embassy::main]
 async fn main(spawner: Spawner) {
     // generator version: 0.5.0
-    esp_alloc::heap_allocator!(size: 64 * 1024);
     init_logger(log::LevelFilter::Info);
 
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
@@ -78,45 +72,17 @@ async fn main(spawner: Spawner) {
     .with_sda(peripherals.GPIO23)
     .into_async();
 
-    let interface = display_interface_i2c::I2CInterface::new(i2c_bus, 0x3C, 0x40);
-
-    let raw_disp = Builder::new(oled_async::displays::sh1106::Sh1106_128_64 {})
-        .with_rotation(DisplayRotation::Rotate0)
-        .connect(interface);
-    let mut display: GraphicsMode<_, _> = raw_disp.into();
+    let interface = I2CDisplayInterface::new(i2c_bus);
+    let mut display = Ssd1306Async::new(
+        interface,
+        DisplaySize128x64,
+        ssd1306::prelude::DisplayRotation::Rotate0,
+    )
+    .into_buffered_graphics_mode();
     display.init().await.unwrap();
 
-    // draw rust logo
-    let im = ImageRawLE::new(include_bytes!("./rust.raw"), 64);
-    Image::new(&im, Point::new(0, 0))
-        .draw(&mut display)
-        .unwrap();
-
-    // draw text
-    let text_style = MonoTextStyleBuilder::new()
-        .font(&FONT_6X10)
-        // .font(&FONT_6X10)
-        // .font(&FONT_4X6)
-        .text_color(BinaryColor::On)
-        .build();
-
-    Text::with_baseline(
-        "Hello \n\nRust!",
-        Point::new(84, 10),
-        text_style,
-        Baseline::Top,
-    )
-    .draw(&mut display)
-    .unwrap();
-
-    Text::with_baseline(
-        "from sh1106",
-        Point::new(61, display.get_dimensions().1 as i32 - 1),
-        text_style,
-        Baseline::Bottom,
-    )
-    .draw(&mut display)
-    .unwrap();
+    let img = ImageRawLE::new(include_bytes!("../../nyancat.raw"), 128);
+    img.draw(&mut display).unwrap();
 
     display.flush().await.unwrap();
 

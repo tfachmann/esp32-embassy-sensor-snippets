@@ -1,0 +1,25 @@
+[package]
+edition = "2021"
+name = "oled_ssd1306"
+rust-version = "1.86"
+version = "0.1.0"
+
+[[bin]]
+name = "oled_ssd1306"
+path = "./src/bin/main.rs"
+test = false
+doctest = false
+bench = false
+
+[dependencies]
+log = { version = "0.4" }
+esp-println = { version = "0.15", features = ["esp32", "log-04"] }
+embassy-executor = { version = "0.7.0", features = ["task-arena-size-20480"] }
+esp-bootloader-esp-idf = { version = "0.2.0", features = ["esp32"] }
+esp-hal = { version = "=1.0.0-rc.0", features = ["esp32", "unstable"] }
+embassy-time = "0.4.0"
+esp-hal-embassy = { version = "0.9.0", features = ["esp32"] }
+critical-section = "1.2.0"
+
+ssd1306 = { version = "0.10", features = ["async"] }
+embedded-graphics = "0.8.1"
