@@ -292,6 +292,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "edrv-hmc5883l"
+version = "0.0.1"
+source = "git+https://github.com/embedded-drivers/embedded-drivers.git#ea0aeb62dc560ab3bea6d523477caffdf657f00a"
+dependencies = [
+ "embedded-hal 1.0.0",
+ "embedded-hal-async",
+]
+
+[[package]]
 name = "embassy-embedded-hal"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -879,6 +888,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "gy_271"
+version = "0.1.0"
+dependencies = [
+ "critical-section",
+ "edrv-hmc5883l",
+ "embassy-executor",
+ "embassy-time",
+ "esp-bootloader-esp-idf",
+ "esp-hal",
+ "esp-hal-embassy",
+ "esp-println",
+ "log",
+]
+
+[[package]]
 name = "hash32"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -914,6 +938,20 @@ name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
+
+[[package]]
+name = "i2c_scanner"
+version = "0.1.0"
+dependencies = [
+ "critical-section",
+ "embassy-executor",
+ "embassy-time",
+ "esp-bootloader-esp-idf",
+ "esp-hal",
+ "esp-hal-embassy",
+ "esp-println",
+ "log",
+]
 
 [[package]]
 name = "ident_case"
