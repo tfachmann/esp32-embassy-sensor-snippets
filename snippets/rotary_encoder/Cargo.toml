@@ -1,0 +1,25 @@
+[package]
+edition = "2021"
+name = "rotary_encoder"
+rust-version = "1.86"
+version = "0.1.0"
+
+[[bin]]
+name = "rotary_encoder"
+path = "./src/bin/main.rs"
+test = false
+doctest = false
+bench = false
+
+[dependencies]
+log = { version = "0.4" }
+esp-println = { version = "0.15", features = ["esp32", "log-04"] }
+embassy-executor = { version = "0.7.0", features = ["task-arena-size-20480"] }
+esp-bootloader-esp-idf = { version = "0.2.0", features = ["esp32"] }
+esp-hal = { version = "=1.0.0-rc.0", features = ["esp32", "unstable"] }
+embassy-time = "0.4.0"
+esp-hal-embassy = { version = "0.9.0", features = ["esp32"] }
+critical-section = "1.2.0"
+
+embassy-futures = "0.1.2"
+rotary-encoder-hal = { version = "0.6.0", features = ["table-decoder"] }
