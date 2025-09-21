@@ -20,8 +20,6 @@ use esp_hal::timer::timg::TimerGroup;
 use esp_hal::Async;
 use esp_println::logger::init_logger;
 
-// static I2C_BUS: StaticCell<Mutex<NoopRawMutex, I2c<'_, Async>>> = StaticCell::new();
-
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
     loop {}
@@ -75,14 +73,6 @@ async fn main(spawner: Spawner) {
     let timer0 = TimerGroup::new(peripherals.TIMG1);
     esp_hal_embassy::init(timer0.timer0);
 
-    // let i2c0 = I2C::new(
-    //     peripherals.I2C0,
-    //     io.pins.gpio21, // SDA
-    //     io.pins.gpio22, // SCL
-    //     400.kHz(),
-    //     &clocks,
-    // );
-
     let i2c0 = esp_hal::i2c::master::I2c::new(
         peripherals.I2C0,
         esp_hal::i2c::master::Config::default().with_frequency(Rate::from_khz(400)),
@@ -96,6 +86,4 @@ async fn main(spawner: Spawner) {
 
     spawner.spawn(blink_led(led)).ok();
     spawner.spawn(read_bmp180(i2c0)).ok();
-
-    // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.0.0-rc.0/examples/src/bin
 }
