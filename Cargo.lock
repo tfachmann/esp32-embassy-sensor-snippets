@@ -1026,6 +1026,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "joystick"
+version = "0.1.0"
+dependencies = [
+ "critical-section",
+ "embassy-executor",
+ "embassy-time",
+ "esp-bootloader-esp-idf",
+ "esp-hal",
+ "esp-hal-embassy",
+ "esp-println",
+ "log",
+ "nb 1.1.0",
+]
+
+[[package]]
 name = "libm"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
