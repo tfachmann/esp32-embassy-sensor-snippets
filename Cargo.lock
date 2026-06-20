@@ -292,6 +292,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "doktorhut_flo"
+version = "0.1.0"
+dependencies = [
+ "critical-section",
+ "display-interface",
+ "display-interface-i2c",
+ "embassy-executor",
+ "embassy-time",
+ "embedded-graphics",
+ "esp-bootloader-esp-idf",
+ "esp-hal",
+ "esp-hal-embassy",
+ "esp-println",
+ "log",
+ "oled_async",
+]
+
+[[package]]
 name = "duplicate"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
