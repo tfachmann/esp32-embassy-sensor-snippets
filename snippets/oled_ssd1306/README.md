@@ -1,7 +1,7 @@
 # OLED SSD1306
 
-Example for OLED SSD1306
+Example for OLED SSD1306 Display.
 
-```sh
-magick nyancat.png -depth 1 gray:nyancat.raw
-```
+## Circuit image
+
+![circuit image](./circuit_image.png)
