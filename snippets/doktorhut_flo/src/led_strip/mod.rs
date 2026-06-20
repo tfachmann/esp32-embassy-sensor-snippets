@@ -6,6 +6,7 @@ pub mod effects;
 use embassy_time::{Duration, Timer};
 use esp_hal::peripherals::{GPIO5, RMT};
 
+use crate::control;
 pub use driver::Ws2812;
 use effects::{Effect, Packet};
 
@@ -20,10 +21,9 @@ pub const BRIGHTNESS_SHIFT: u8 = 3;
 pub type Rgb = [u8; 3];
 pub type Framebuffer = [Rgb; NUM_LEDS];
 
-const FRAME_MS: u64 = 30;
+const FRAME_MS: u64 = 8;
 
 const PACKET_BYTE: u8 = 0b1011_0010;
-const PACKET_STEP_FRAMES: u32 = 3;
 const PACKET_BIT_WIDTH: u32 = 1;
 
 #[embassy_executor::task]
@@ -31,13 +31,14 @@ pub async fn run(rmt: RMT<'static>, data: GPIO5<'static>) {
     let mut strip = Ws2812::new(rmt, data);
     let mut fb: Framebuffer = [[0, 0, 0]; NUM_LEDS];
 
-    let mut effect = Packet::new(PACKET_BYTE)
-        .with_step_frames(PACKET_STEP_FRAMES)
-        .with_bit_width(PACKET_BIT_WIDTH);
+    let mut effect = Packet::new(PACKET_BYTE).with_bit_width(PACKET_BIT_WIDTH);
 
     loop {
-        effect.render(&mut fb);
-        strip.write(&fb);
+        effect.set_velocity_q8(control::velocity_q8());
+        if !control::is_paused() {
+            effect.render(&mut fb);
+            strip.write(&fb);
+        }
         Timer::after(Duration::from_millis(FRAME_MS)).await;
     }
 }

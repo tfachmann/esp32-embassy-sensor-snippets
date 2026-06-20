@@ -30,3 +30,6 @@ oled_async = { git = "https://github.com/techmccat/sh1106.git", branch = "master
 embedded-graphics = "0.8.1"
 display-interface = { version = "0.5", features = [] }
 display-interface-i2c = { version = "0.5", features = [] }
+
+embassy-futures = "0.1.2"
+rotary-encoder-hal = { version = "0.6.0", features = ["table-decoder"] }

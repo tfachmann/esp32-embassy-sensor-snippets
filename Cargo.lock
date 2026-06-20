@@ -299,6 +299,7 @@ dependencies = [
  "display-interface",
  "display-interface-i2c",
  "embassy-executor",
+ "embassy-futures",
  "embassy-time",
  "embedded-graphics",
  "esp-bootloader-esp-idf",
@@ -307,6 +308,7 @@ dependencies = [
  "esp-println",
  "log",
  "oled_async",
+ "rotary-encoder-hal",
 ]
 
 [[package]]

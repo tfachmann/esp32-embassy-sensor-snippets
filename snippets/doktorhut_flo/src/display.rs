@@ -1,5 +1,7 @@
 //! SH1106 128x64 OLED over I2C (SCL=GPIO18, SDA=GPIO23, addr 0x3C).
 
+use core::fmt::Write;
+
 use embassy_time::{Duration, Timer};
 use embedded_graphics::mono_font::ascii::FONT_6X10;
 use embedded_graphics::mono_font::MonoTextStyleBuilder;
@@ -12,6 +14,36 @@ use esp_hal::peripherals::{GPIO18, GPIO23, I2C0};
 use esp_hal::time::Rate;
 use oled_async::builder::Builder;
 use oled_async::prelude::*;
+
+use crate::control;
+
+struct FmtBuf {
+    buf: [u8; 24],
+    len: usize,
+}
+
+impl FmtBuf {
+    fn new() -> Self {
+        Self {
+            buf: [0; 24],
+            len: 0,
+        }
+    }
+
+    fn as_str(&self) -> &str {
+        core::str::from_utf8(&self.buf[..self.len]).unwrap_or("")
+    }
+}
+
+impl Write for FmtBuf {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        let b = s.as_bytes();
+        let n = b.len().min(self.buf.len() - self.len);
+        self.buf[self.len..self.len + n].copy_from_slice(&b[..n]);
+        self.len += n;
+        Ok(())
+    }
+}
 
 #[embassy_executor::task]
 pub async fn run(i2c: I2C0<'static>, scl: GPIO18<'static>, sda: GPIO23<'static>) {
@@ -45,13 +77,23 @@ pub async fn run(i2c: I2C0<'static>, scl: GPIO18<'static>, sda: GPIO23<'static>)
     let mut frame: i32 = 0;
     loop {
         let phase = frame % (2 * track);
-        let x = if phase < track { phase } else { 2 * track - phase };
+        let x = if phase < track {
+            phase
+        } else {
+            2 * track - phase
+        };
+
+        let mut line = FmtBuf::new();
+        let _ = write!(line, "Speed: {}", control::speed());
+        if control::is_paused() {
+            let _ = write!(line, " [P]");
+        }
 
         display.clear();
-        Text::with_baseline("Doktorhut", Point::new(0, 0), text_style, Baseline::Top)
+        Text::with_baseline("Doktorhut Flo", Point::new(0, 0), text_style, Baseline::Top)
             .draw(&mut display)
             .unwrap();
-        Text::with_baseline("  Flo!", Point::new(0, 12), text_style, Baseline::Top)
+        Text::with_baseline(line.as_str(), Point::new(0, 16), text_style, Baseline::Top)
             .draw(&mut display)
             .unwrap();
         Rectangle::new(Point::new(x, h as i32 - 10), Size::new(box_w as u32, 8))

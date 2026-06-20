@@ -6,11 +6,11 @@
     holding buffers for the duration of a data transfer."
 )]
 
-use doktorhut_flo::{display, led_strip};
+use doktorhut_flo::{display, led_strip, rotary};
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use esp_hal::clock::CpuClock;
-use esp_hal::gpio::{Level, Output, OutputConfig};
+use esp_hal::gpio::{Input, InputConfig, Level, Output, OutputConfig, Pull};
 use esp_hal::timer::timg::TimerGroup;
 use esp_println::logger::init_logger;
 use log::{error, info};
@@ -53,9 +53,22 @@ async fn main(spawner: Spawner) {
     let timer0 = TimerGroup::new(peripherals.TIMG1);
     esp_hal_embassy::init(timer0.timer0);
 
+    esp_hal::interrupt::enable(
+        esp_hal::peripherals::Interrupt::GPIO,
+        esp_hal::interrupt::Priority::Priority1,
+    )
+    .unwrap();
+
     let led = Output::new(peripherals.GPIO2, Level::High, OutputConfig::default());
     spawner.spawn(blink_led(led)).ok();
     spawner.spawn(counter()).ok();
+
+    let pull_up = InputConfig::default().with_pull(Pull::Up);
+    let enc_a = Input::new(peripherals.GPIO19, pull_up);
+    let enc_b = Input::new(peripherals.GPIO21, pull_up);
+    let enc_sw = Input::new(peripherals.GPIO22, pull_up);
+    spawner.spawn(rotary::read_encoder(enc_a, enc_b)).ok();
+    spawner.spawn(rotary::read_button(enc_sw)).ok();
 
     spawner
         .spawn(display::run(

@@ -2,9 +2,7 @@
 
 use esp_hal::gpio::Level;
 use esp_hal::peripherals::{GPIO5, RMT};
-use esp_hal::rmt::{
-    AnyTxChannel, PulseCode, Rmt, TxChannel, TxChannelConfig, TxChannelCreator,
-};
+use esp_hal::rmt::{AnyTxChannel, PulseCode, Rmt, TxChannel, TxChannelConfig, TxChannelCreator};
 use esp_hal::time::Rate;
 use esp_hal::Blocking;
 
