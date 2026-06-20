@@ -82,6 +82,8 @@ async fn main(spawner: Spawner) {
         .connect(interface);
     let mut display: GraphicsMode<_, _> = raw_disp.into();
     display.init().await.unwrap();
+    // important: flush display after init
+    display.clear();
 
     // draw rust logo
     let im = ImageRawLE::new(include_bytes!("../../rust.raw"), 64);
