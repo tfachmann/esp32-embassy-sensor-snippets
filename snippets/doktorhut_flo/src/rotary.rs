@@ -1,5 +1,5 @@
 //! Rotary encoder input: CLK=GPIO19, DT=GPIO21, SW=GPIO22 (all pull-up).
-//! Left = slower, right = faster, click = pause toggle.
+//! Right = slower, left = faster, click = next effect.
 
 use embassy_futures::select::select;
 use embassy_time::{Duration, Timer};
@@ -15,8 +15,8 @@ pub async fn read_encoder(a: Input<'static>, b: Input<'static>) {
         let (a, b) = rotary.pins();
         select(a.wait_for_any_edge(), b.wait_for_any_edge()).await;
         match rotary.update().unwrap() {
-            Direction::CounterClockwise => control::slower(),
-            Direction::Clockwise => control::faster(),
+            Direction::CounterClockwise => control::faster(),
+            Direction::Clockwise => control::slower(),
             Direction::None => {}
         }
     }
@@ -28,7 +28,7 @@ pub async fn read_button(mut sw: Input<'static>) {
         sw.wait_for_any_edge().await;
         Timer::after(Duration::from_millis(20)).await; // debounce
         if !sw.is_high() {
-            control::toggle_pause();
+            control::next_mode();
         }
     }
 }

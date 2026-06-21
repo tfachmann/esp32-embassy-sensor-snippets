@@ -296,19 +296,25 @@ name = "doktorhut_flo"
 version = "0.1.0"
 dependencies = [
  "critical-section",
+ "dfplayer-async",
  "display-interface",
  "display-interface-i2c",
+ "edrv-mpu6050",
+ "embassy-embedded-hal 0.3.2",
  "embassy-executor",
  "embassy-futures",
+ "embassy-sync 0.6.2",
  "embassy-time",
  "embedded-graphics",
  "esp-bootloader-esp-idf",
  "esp-hal",
  "esp-hal-embassy",
  "esp-println",
+ "libm",
  "log",
  "oled_async",
  "rotary-encoder-hal",
+ "static_cell",
 ]
 
 [[package]]
@@ -323,6 +329,15 @@ dependencies = [
 
 [[package]]
 name = "edrv-hmc5883l"
+version = "0.0.1"
+source = "git+https://github.com/embedded-drivers/embedded-drivers.git#ea0aeb62dc560ab3bea6d523477caffdf657f00a"
+dependencies = [
+ "embedded-hal 1.0.0",
+ "embedded-hal-async",
+]
+
+[[package]]
+name = "edrv-mpu6050"
 version = "0.0.1"
 source = "git+https://github.com/embedded-drivers/embedded-drivers.git#ea0aeb62dc560ab3bea6d523477caffdf657f00a"
 dependencies = [
@@ -990,6 +1005,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "i2c_sharing"
+version = "0.1.0"
+dependencies = [
+ "critical-section",
+ "display-interface",
+ "display-interface-i2c",
+ "edrv-mpu6050",
+ "embassy-embedded-hal 0.3.2",
+ "embassy-executor",
+ "embassy-sync 0.6.2",
+ "embassy-time",
+ "embedded-graphics",
+ "esp-bootloader-esp-idf",
+ "esp-hal",
+ "esp-hal-embassy",
+ "esp-println",
+ "libm",
+ "log",
+ "oled_async",
+ "static_cell",
+]
+
+[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1122,6 +1160,21 @@ version = "0.1.0"
 dependencies = [
  "critical-section",
  "dfplayer-async",
+ "embassy-executor",
+ "embassy-time",
+ "esp-bootloader-esp-idf",
+ "esp-hal",
+ "esp-hal-embassy",
+ "esp-println",
+ "log",
+]
+
+[[package]]
+name = "mpu6050"
+version = "0.1.0"
+dependencies = [
+ "critical-section",
+ "edrv-mpu6050",
  "embassy-executor",
  "embassy-time",
  "esp-bootloader-esp-idf",

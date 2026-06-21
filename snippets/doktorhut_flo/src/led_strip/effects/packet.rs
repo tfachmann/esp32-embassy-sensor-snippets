@@ -30,10 +30,6 @@ impl Packet {
         }
     }
 
-    pub fn set_velocity_q8(&mut self, vel_q8: u32) {
-        self.vel_q8 = (vel_q8 as i32).max(1);
-    }
-
     pub fn with_bit_width(mut self, width: u32) -> Self {
         self.bit_width = width.max(1) as i32;
         self.pos_q8 = -self.span() * Q8;
@@ -46,6 +42,10 @@ impl Packet {
 }
 
 impl Effect for Packet {
+    fn set_velocity_q8(&mut self, vel_q8: u32) {
+        self.vel_q8 = (vel_q8 as i32).max(1);
+    }
+
     fn render(&mut self, fb: &mut Framebuffer) {
         fb.fill(OFF);
 

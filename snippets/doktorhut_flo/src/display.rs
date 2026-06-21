@@ -1,4 +1,4 @@
-//! SH1106 128x64 OLED over I2C (SCL=GPIO18, SDA=GPIO23, addr 0x3C).
+//! SH1106 128x64 OLED on the shared I2C bus (addr 0x3C).
 
 use core::fmt::Write;
 
@@ -9,12 +9,10 @@ use embedded_graphics::pixelcolor::BinaryColor;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
 use embedded_graphics::text::{Baseline, Text};
-use esp_hal::i2c::master::{Config, I2c};
-use esp_hal::peripherals::{GPIO18, GPIO23, I2C0};
-use esp_hal::time::Rate;
 use oled_async::builder::Builder;
 use oled_async::prelude::*;
 
+use crate::bus::SharedI2c;
 use crate::control;
 
 struct FmtBuf {
@@ -46,14 +44,8 @@ impl Write for FmtBuf {
 }
 
 #[embassy_executor::task]
-pub async fn run(i2c: I2C0<'static>, scl: GPIO18<'static>, sda: GPIO23<'static>) {
-    let i2c_bus = I2c::new(i2c, Config::default().with_frequency(Rate::from_khz(400)))
-        .unwrap()
-        .with_scl(scl)
-        .with_sda(sda)
-        .into_async();
-
-    let interface = display_interface_i2c::I2CInterface::new(i2c_bus, 0x3C, 0x40);
+pub async fn run(i2c: SharedI2c) {
+    let interface = display_interface_i2c::I2CInterface::new(i2c, 0x3C, 0x40);
     let raw_disp = Builder::new(oled_async::displays::sh1106::Sh1106_128_64 {})
         .with_rotation(DisplayRotation::Rotate0)
         .connect(interface);
@@ -83,17 +75,24 @@ pub async fn run(i2c: I2C0<'static>, scl: GPIO18<'static>, sda: GPIO23<'static>)
             2 * track - phase
         };
 
-        let mut line = FmtBuf::new();
-        let _ = write!(line, "Speed: {}", control::speed());
-        if control::is_paused() {
-            let _ = write!(line, " [P]");
-        }
+        let mut speed_line = FmtBuf::new();
+        let _ = write!(speed_line, "Speed: {}", control::speed());
+        let mut mode_line = FmtBuf::new();
+        let _ = write!(mode_line, "Mode:  {}", control::mode_name(control::mode()));
+        let mut imu_line = FmtBuf::new();
+        let _ = write!(imu_line, "Tilt P:{} R:{}", control::pitch(), control::roll());
 
         display.clear();
         Text::with_baseline("Doktorhut Flo", Point::new(0, 0), text_style, Baseline::Top)
             .draw(&mut display)
             .unwrap();
-        Text::with_baseline(line.as_str(), Point::new(0, 16), text_style, Baseline::Top)
+        Text::with_baseline(speed_line.as_str(), Point::new(0, 14), text_style, Baseline::Top)
+            .draw(&mut display)
+            .unwrap();
+        Text::with_baseline(mode_line.as_str(), Point::new(0, 26), text_style, Baseline::Top)
+            .draw(&mut display)
+            .unwrap();
+        Text::with_baseline(imu_line.as_str(), Point::new(0, 38), text_style, Baseline::Top)
             .draw(&mut display)
             .unwrap();
         Rectangle::new(Point::new(x, h as i32 - 10), Size::new(box_w as u32, 8))
