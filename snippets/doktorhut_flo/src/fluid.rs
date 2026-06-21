@@ -10,7 +10,7 @@ use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
 use fluid_sim::FluidSimulation::Scene;
 use static_cell::StaticCell;
 
-const PARTICLES: i32 = 450; // tune for speed vs. fill (vendored grid seeds 450)
+const PARTICLES: i32 = 200; // tune for speed vs. fill (vendored grid seeds 200)
 const GRID_W: usize = 24; // get_output() is 24x12 (vendored 26x14 grid - 2)
 const GRID_H: usize = 12;
 const CELL: i32 = 5; // pixels per cell -> 120x60, near-full 128x64

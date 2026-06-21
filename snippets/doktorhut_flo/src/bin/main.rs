@@ -82,7 +82,7 @@ async fn main(spawner: Spawner) {
     // is spec'd for 400kHz -- if it glitches at 800, split it onto I2C1.
     let i2c = esp_hal::i2c::master::I2c::new(
         peripherals.I2C0,
-        esp_hal::i2c::master::Config::default().with_frequency(Rate::from_khz(800)),
+        esp_hal::i2c::master::Config::default().with_frequency(Rate::from_khz(1000)),
     )
     .unwrap()
     .with_scl(peripherals.GPIO18)

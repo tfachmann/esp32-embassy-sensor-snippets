@@ -9,7 +9,7 @@ pub mod FluidSimulation {
 
     // doktorhut_flo: non-square 26x14 grid (W x H) to fill the 128x64 panel,
     // sized down from 23x23/800 so the Scene fits the ESP32 RAM budget.
-    static max_particles_setting: usize = 450;
+    static max_particles_setting: usize = 200;
     static number_of_vertical_cells_setting: usize = 14; // H (also the cell stride)
     static number_of_horizontal_cells_setting: usize = 26; // W
     static max_particles_x2_setting: usize = max_particles_setting * 2;
@@ -151,9 +151,9 @@ pub mod FluidSimulation {
             // this.particlePos = new Float32Array(2 * this.maxParticles);
             let mut particlePos = [0.0; max_particles_x2_setting];
             let mut count: usize = 0;
-            // seed a 30(x) x 15(y) block = 450 particles in the lower-left
-            for i in 1..16 {
-                for j in 1..31 {
+            // seed a 20(x) x 10(y) block = 200 particles in the lower-left
+            for i in 1..11 {
+                for j in 1..21 {
                     particlePos[count * 2] = (j as f32) / 2.0;
                     particlePos[count * 2 + 1] = (i as f32) / 2.0;
                     count += 1;
@@ -1129,7 +1129,7 @@ pub mod FluidSimulation {
             // scene.dt = 1.0 / 60.0;
             let dt = 1.0 / 60.0;
             // scene.numPressureIters = 50;
-            let numPressureIters = 10;
+            let numPressureIters = 6;
             // scene.numParticleIters = 2;
             let numParticleIters = 1;
 
