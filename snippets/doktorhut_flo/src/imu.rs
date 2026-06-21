@@ -43,6 +43,12 @@ pub async fn run(i2c: SharedI2c) {
     log::info!("imu initialized");
 
     loop {
+        // Paused unless the IMU process is on (toggled, or auto-started by
+        // FLUIDS/TILT). The chip stays configured, so this just resumes reads.
+        if !control::imu_on() {
+            Timer::after(Duration::from_millis(50)).await;
+            continue;
+        }
         if let Ok((ax, ay, az)) = mpu.read_accel().await {
             let pitch = libm::atan2f(-ax, libm::sqrtf(ay * ay + az * az)).to_degrees();
             let roll = libm::atan2f(ay, az).to_degrees();

@@ -37,17 +37,34 @@ pub async fn run(mut uart: Uart<'static, Async>) {
         };
     log::info!("dfplayer initialized");
 
-    if let Err(e) = player.play(TRACK).await {
-        log::error!("dfplayer play: {e:?}");
-    }
-
-    // Apply volume from `control` whenever it changes (menu edits it).
-    let mut applied = u8::MAX;
+    // MUSIC is a process toggle (off at boot): play/resume when on, pause when
+    // off. Also sync volume from `control`.
+    let mut applied_vol = u8::MAX;
+    let mut playing = false; // current player state
+    let mut started = false; // has play(TRACK) been issued at least once
     loop {
-        let want = control::volume() as u8;
-        if want != applied && player.set_volume(want).await.is_ok() {
-            applied = want;
+        let want = control::music_on();
+        if want != playing {
+            let r = if want {
+                if started {
+                    player.resume().await
+                } else {
+                    started = true;
+                    player.play(TRACK).await
+                }
+            } else {
+                player.pause().await
+            };
+            if r.is_ok() {
+                playing = want;
+            }
         }
+
+        let vol = control::volume() as u8;
+        if vol != applied_vol && player.set_volume(vol).await.is_ok() {
+            applied_vol = vol;
+        }
+
         Timer::after(Duration::from_millis(200)).await;
     }
 }

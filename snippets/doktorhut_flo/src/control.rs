@@ -1,12 +1,10 @@
 //! Shared control state, written by the rotary encoder, read by led_strip and
 //! display. Single writer per field, so plain atomic load/store is enough.
 
-use core::sync::atomic::{AtomicI32, AtomicU32, Ordering::Relaxed};
+use core::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering::Relaxed};
 
 pub const SPEED_MIN: u32 = 1;
 pub const SPEED_MAX: u32 = 20;
-
-pub const MODE_COUNT: u32 = 2;
 
 pub const VOLUME_MIN: u32 = 0;
 pub const VOLUME_MAX: u32 = 30;
@@ -18,9 +16,20 @@ const VEL_MIN_Q8: u32 = 8; // ~0.03 LED/frame
 const VEL_MAX_Q8: u32 = 1024; // 4 LED/frame
 
 static SPEED: AtomicU32 = AtomicU32::new(6);
-static MODE: AtomicU32 = AtomicU32::new(0);
 static VOLUME: AtomicU32 = AtomicU32::new(15);
 static BRIGHTNESS: AtomicU32 = AtomicU32::new(5);
+
+// Process running state (all off at boot). Indices for process_running():
+// 0=beer, 1=music, 2=imu, 3=fluids, 4=tilt.
+static BEER_ON: AtomicBool = AtomicBool::new(false);
+static MUSIC_ON: AtomicBool = AtomicBool::new(false);
+static IMU_ON: AtomicBool = AtomicBool::new(false);
+static FLUIDS_ON: AtomicBool = AtomicBool::new(false);
+static TILT_ON: AtomicBool = AtomicBool::new(false);
+
+// IMU brightness ramp: ms timestamp when the IMU turned on (0 = off/not ramping).
+pub const IMU_RAMP_MS: u32 = 2500;
+static IMU_STARTED_MS: AtomicU32 = AtomicU32::new(0);
 
 // IMU orientation (deg), written by the imu task, read by the display.
 static PITCH: AtomicI32 = AtomicI32::new(0);
@@ -49,23 +58,76 @@ pub fn slower() {
     SPEED.store(speed().saturating_sub(1).max(SPEED_MIN), Relaxed);
 }
 
-pub fn mode() -> u32 {
-    MODE.load(Relaxed)
+// --- process state ---------------------------------------------------------
+
+pub fn beer_on() -> bool {
+    BEER_ON.load(Relaxed)
+}
+pub fn start_beer() {
+    BEER_ON.store(true, Relaxed);
+}
+pub fn clear_beer() {
+    BEER_ON.store(false, Relaxed);
 }
 
-pub fn next_mode() {
-    MODE.store((mode() + 1) % MODE_COUNT, Relaxed);
+pub fn music_on() -> bool {
+    MUSIC_ON.load(Relaxed)
+}
+pub fn toggle_music() {
+    MUSIC_ON.store(!music_on(), Relaxed);
 }
 
-pub fn prev_mode() {
-    MODE.store((mode() + MODE_COUNT - 1) % MODE_COUNT, Relaxed);
+pub fn imu_on() -> bool {
+    IMU_ON.load(Relaxed)
+}
+pub fn toggle_imu(now_ms: u32) {
+    set_imu(!imu_on(), now_ms);
+}
+pub fn set_imu(on: bool, now_ms: u32) {
+    let was = imu_on();
+    IMU_ON.store(on, Relaxed);
+    if on && !was {
+        IMU_STARTED_MS.store(now_ms.max(1), Relaxed); // start the ramp
+    } else if !on {
+        IMU_STARTED_MS.store(0, Relaxed);
+    }
 }
 
-pub fn mode_name(mode: u32) -> &'static str {
-    match mode {
-        0 => "Packet",
-        1 => "Stream",
-        _ => "?",
+/// IMU fully started (on and past its ramp).
+pub fn imu_ready(now_ms: u32) -> bool {
+    imu_on() && imu_ramp_q8(now_ms) >= 256
+}
+
+/// Stream brightness ramp 0..=256 over IMU_RAMP_MS after the IMU turns on.
+pub fn imu_ramp_q8(now_ms: u32) -> u32 {
+    let started = IMU_STARTED_MS.load(Relaxed);
+    if started == 0 {
+        return 0;
+    }
+    let dt = now_ms.wrapping_sub(started);
+    if dt >= IMU_RAMP_MS {
+        256
+    } else {
+        dt * 256 / IMU_RAMP_MS
+    }
+}
+
+pub fn set_fluids_active(on: bool) {
+    FLUIDS_ON.store(on, Relaxed);
+}
+pub fn set_tilt_active(on: bool) {
+    TILT_ON.store(on, Relaxed);
+}
+
+/// Running state of process `i` (0=beer,1=music,2=imu,3=fluids,4=tilt).
+pub fn process_running(i: usize) -> bool {
+    match i {
+        0 => beer_on(),
+        1 => music_on(),
+        2 => imu_on(),
+        3 => FLUIDS_ON.load(Relaxed),
+        4 => TILT_ON.load(Relaxed),
+        _ => false,
     }
 }
 

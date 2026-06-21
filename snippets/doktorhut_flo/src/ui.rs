@@ -5,8 +5,13 @@
 use core::cell::RefCell;
 
 use critical_section::Mutex;
+use embassy_time::Instant;
 
 use crate::control;
+
+fn now_ms() -> u32 {
+    Instant::now().as_millis() as u32
+}
 
 pub enum Event {
     Left,
@@ -32,14 +37,22 @@ pub enum ViewScreen {
     About,
 }
 
-pub const MAIN_ITEMS: [&str; 6] = ["BEER", "MUSIC", "FLUIDS", "TILT", "ABOUT", "CONTROLS"];
-pub const CONTROL_ITEMS: [&str; 5] = ["Volume", "LED Speed", "LED Bright", "LED Effect", "Back"];
+pub const MAIN_ITEMS: [&str; 7] =
+    ["BEER", "MUSIC", "IMU", "FLUIDS", "TILT", "ABOUT", "CONTROLS"];
+pub const CONTROL_ITEMS: [&str; 4] = ["Volume", "LED Speed", "LED Bright", "Back"];
 
-const MAIN_FLUIDS: usize = 2; // index of "FLUIDS" in MAIN_ITEMS
-const MAIN_TILT: usize = 3; // index of "TILT" in MAIN_ITEMS
-const MAIN_ABOUT: usize = 4; // index of "ABOUT" in MAIN_ITEMS
-const MAIN_CONTROLS: usize = 5; // index of "CONTROLS" in MAIN_ITEMS
-const CONTROLS_BACK: usize = 4; // index of "Back" in CONTROL_ITEMS
+/// The first PROCESS_COUNT MAIN_ITEMS are "processes" (highlight selection +
+/// status rects); the rest are normal entries (">" cursor).
+pub const PROCESS_COUNT: usize = 5;
+
+const MAIN_BEER: usize = 0;
+const MAIN_MUSIC: usize = 1;
+const MAIN_IMU: usize = 2;
+const MAIN_FLUIDS: usize = 3;
+const MAIN_TILT: usize = 4;
+const MAIN_ABOUT: usize = 5;
+const MAIN_CONTROLS: usize = 6;
+const CONTROLS_BACK: usize = 3; // index of "Back" in CONTROL_ITEMS
 
 struct Ui {
     screen: Screen,
@@ -85,25 +98,30 @@ pub fn on_input(ev: Event) {
                 Event::Left => ui.cursor = wrap_prev(ui.cursor, MAIN_ITEMS.len()),
                 Event::Right => ui.cursor = wrap_next(ui.cursor, MAIN_ITEMS.len()),
                 Event::Click => match ui.cursor {
+                    MAIN_BEER => control::start_beer(),
+                    MAIN_MUSIC => control::toggle_music(),
+                    MAIN_IMU => control::toggle_imu(now_ms()),
+                    MAIN_FLUIDS => enter_with_imu(&mut ui, Screen::Fluids),
+                    MAIN_TILT => enter_with_imu(&mut ui, Screen::Tilt),
+                    MAIN_ABOUT => ui.screen = Screen::About,
                     MAIN_CONTROLS => {
                         ui.screen = Screen::Controls;
                         ui.cursor = 0;
                     }
-                    MAIN_FLUIDS => ui.screen = Screen::Fluids,
-                    MAIN_TILT => ui.screen = Screen::Tilt,
-                    MAIN_ABOUT => ui.screen = Screen::About,
-                    _ => {} // BEER / MUSIC: no-op for now.
+                    _ => {}
                 },
             },
             Screen::Fluids => {
                 // Rotation ignored; click returns to the main menu.
                 if let Event::Click = ev {
+                    control::set_fluids_active(false);
                     ui.screen = Screen::Main;
                     ui.cursor = MAIN_FLUIDS;
                 }
             }
             Screen::Tilt => {
                 if let Event::Click = ev {
+                    control::set_tilt_active(false);
                     ui.screen = Screen::Main;
                     ui.cursor = MAIN_TILT;
                 }
@@ -135,6 +153,23 @@ pub fn on_input(ev: Event) {
     });
 }
 
+/// Enter a screen that needs the IMU. If the IMU is ready, enter it; otherwise
+/// (first click) just start the IMU and stay on the menu -- the IMU status block
+/// animates "not ready" during the ramp. Click again once ready to enter.
+fn enter_with_imu(ui: &mut Ui, target: Screen) {
+    if control::imu_ready(now_ms()) {
+        match target {
+            Screen::Fluids => control::set_fluids_active(true),
+            Screen::Tilt => control::set_tilt_active(true),
+            _ => {}
+        }
+        ui.screen = target;
+    } else if !control::imu_on() {
+        control::set_imu(true, now_ms()); // start ramping; stay on the menu
+    }
+    // ramping (on but not ready): stay on the menu, ignore.
+}
+
 fn edit_value(item: usize, up: bool) {
     match item {
         0 => {
@@ -156,13 +191,6 @@ fn edit_value(item: usize, up: bool) {
                 control::brighter()
             } else {
                 control::dimmer()
-            }
-        }
-        3 => {
-            if up {
-                control::next_mode()
-            } else {
-                control::prev_mode()
             }
         }
         _ => {}

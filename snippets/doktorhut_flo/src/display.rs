@@ -2,12 +2,14 @@
 
 use core::fmt::Write;
 
-use embassy_time::{Duration, Timer};
-use embedded_graphics::mono_font::ascii::FONT_6X10;
+use embassy_time::{Duration, Instant, Timer};
+use embedded_graphics::mono_font::ascii::{FONT_4X6, FONT_5X8, FONT_6X10};
 use embedded_graphics::mono_font::{MonoTextStyle, MonoTextStyleBuilder};
 use embedded_graphics::pixelcolor::BinaryColor;
 use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle};
+use embedded_graphics::primitives::{
+    PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, RoundedRectangle,
+};
 use embedded_graphics::text::{Baseline, Text};
 use oled_async::builder::Builder;
 use oled_async::prelude::*;
@@ -76,11 +78,26 @@ pub async fn run(i2c: SharedI2c) {
         .font(&FONT_6X10)
         .text_color(BinaryColor::On)
         .build();
+    // Tiny font for the windowed menu chrome (normal + inverted for highlights).
+    let small = MonoTextStyleBuilder::new()
+        .font(&FONT_4X6)
+        .text_color(BinaryColor::On)
+        .build();
+    // Slightly larger font for the process list (normal + inverted).
+    let med = MonoTextStyleBuilder::new()
+        .font(&FONT_5X8)
+        .text_color(BinaryColor::On)
+        .build();
+    let med_inv = MonoTextStyleBuilder::new()
+        .font(&FONT_5X8)
+        .text_color(BinaryColor::Off)
+        .build();
 
     // FLIP fluid scene lives in a static (it is tens of KB) -- init once.
     let scene = fluid::init();
 
     loop {
+        let now = Instant::now().as_millis() as u32;
         let view = ui::view();
 
         display.clear();
@@ -106,11 +123,6 @@ pub async fn run(i2c: SharedI2c) {
                             control::speed(), control::SPEED_MIN, control::SPEED_MAX),
                         2 => row_bar(&mut display, text_style, marker, "Brt", y,
                             control::brightness_level(), control::BRIGHTNESS_MIN, control::BRIGHTNESS_MAX),
-                        3 => {
-                            let mut l = FmtBuf::new();
-                            let _ = write!(l, "{} Fx: {}", marker, control::mode_name(control::mode()));
-                            draw_text(&mut display, text_style, l.as_str(), y);
-                        }
                         _ => {
                             let mut l = FmtBuf::new();
                             let _ = write!(l, "{} {}", marker, name);
@@ -123,7 +135,7 @@ pub async fn run(i2c: SharedI2c) {
                 fluid::step_and_render(scene, &mut display, control::accel_x(), control::accel_y());
             }
             ViewScreen::About => {
-                about::render(&mut display, text_style);
+                about::render(&mut display, text_style, small);
             }
             ViewScreen::Tilt => {
                 tilt3d::render(
@@ -137,13 +149,69 @@ pub async fn run(i2c: SharedI2c) {
                 );
             }
             ViewScreen::Main => {
-                // 6 items: no header so they all fit (rows y=2,12,..,52).
-                for (i, name) in ui::MAIN_ITEMS.iter().enumerate() {
-                    let y = 2 + i as i32 * 10;
+                let stroke = PrimitiveStyleBuilder::new()
+                    .stroke_color(BinaryColor::On)
+                    .stroke_width(1)
+                    .build();
+                let fill = PrimitiveStyle::with_fill(BinaryColor::On);
+
+                // Window border + title bar.
+                let _ = RoundedRectangle::with_equal_corners(
+                    Rectangle::new(Point::new(0, 0), Size::new(128, 64)),
+                    Size::new(6, 6),
+                )
+                .into_styled(stroke)
+                .draw(&mut display);
+                let _ = Text::with_baseline("LN 2.8.2", Point::new(48, 2), small, Baseline::Top)
+                    .draw(&mut display);
+
+                // Processes box: selected row is inverted (no arrow).
+                let _ = Rectangle::new(Point::new(4, 11), Size::new(66, 49))
+                    .into_styled(stroke)
+                    .draw(&mut display);
+                for i in 0..ui::PROCESS_COUNT {
+                    let y = 13 + i as i32 * 8;
+                    let name = ui::MAIN_ITEMS[i];
+                    if i == view.cursor {
+                        let _ = Rectangle::new(Point::new(5, y - 1), Size::new(64, 9))
+                            .into_styled(fill)
+                            .draw(&mut display);
+                        let _ = Text::with_baseline(name, Point::new(7, y), med_inv, Baseline::Top)
+                            .draw(&mut display);
+                    } else {
+                        let _ = Text::with_baseline(name, Point::new(7, y), med, Baseline::Top)
+                            .draw(&mut display);
+                    }
+                }
+
+                // Other box: ABOUT / CONTROLS with a ">" cursor.
+                let _ = Rectangle::new(Point::new(74, 11), Size::new(50, 15))
+                    .into_styled(stroke)
+                    .draw(&mut display);
+                for i in ui::PROCESS_COUNT..ui::MAIN_ITEMS.len() {
+                    let y = 13 + (i - ui::PROCESS_COUNT) as i32 * 6;
                     let marker = if i == view.cursor { ">" } else { " " };
                     let mut l = FmtBuf::new();
-                    let _ = write!(l, "{} {}", marker, name);
-                    draw_text(&mut display, text_style, l.as_str(), y);
+                    let _ = write!(l, "{}{}", marker, ui::MAIN_ITEMS[i]);
+                    let _ = Text::with_baseline(l.as_str(), Point::new(76, y), small, Baseline::Top)
+                        .draw(&mut display);
+                }
+
+                // 5 process-status rects, bottom-right. The IMU block (i=2)
+                // blinks while it is ramping up (not ready yet), solid once ready.
+                for i in 0..5 {
+                    let r = Rectangle::new(Point::new(76 + i as i32 * 9, 44), Size::new(7, 7));
+                    let filled = if i == 2 {
+                        control::imu_on()
+                            && (control::imu_ramp_q8(now) >= 256 || (now / 150) % 2 == 0)
+                    } else {
+                        control::process_running(i)
+                    };
+                    if filled {
+                        let _ = r.into_styled(fill).draw(&mut display);
+                    } else {
+                        let _ = r.into_styled(stroke).draw(&mut display);
+                    }
                 }
             }
         }

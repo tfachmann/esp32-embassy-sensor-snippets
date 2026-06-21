@@ -1,6 +1,8 @@
+mod beer;
 mod packet;
 mod stream;
 
+pub use beer::BeerByte;
 pub use packet::Packet;
 pub use stream::Stream;
 
