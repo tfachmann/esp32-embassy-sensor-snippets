@@ -522,7 +522,9 @@ pub mod FluidSimulation {
             let h2 = 0.5 * h;
 
             // var d = f.particleDensity;
-            let mut d = self.particleDensity.clone();
+            // doktorhut_flo: operate on the field directly (no clone). The next
+            // line zeroes it; nothing read the old contents.
+            let d = &mut self.particleDensity;
 
             // d.fill(0.0);
             d.fill(0.0);
@@ -599,7 +601,7 @@ pub mod FluidSimulation {
                     self.particleRestDensity = sum / numFluidCells as f32;
                 }
             }
-	    self.particleDensity = d;
+	    // doktorhut_flo: d aliases self.particleDensity, no write-back needed.
 
             // // for (var xi = 1; xi < this.fNumX; xi++) {
 
@@ -645,9 +647,9 @@ pub mod FluidSimulation {
             // (also stores previous positions and velocities in prevU/prevV and clears du/dv/u/v)
             if toGrid {
                 // this.prevU.set(this.u);
-                self.prevU = self.u.clone();
+                self.prevU.copy_from_slice(&self.u);
                 // this.prevV.set(this.v);
-                self.prevV = self.v.clone();
+                self.prevV.copy_from_slice(&self.v);
 
                 // this.du.fill(0.0);
                 self.du.fill(0.0);
@@ -707,11 +709,11 @@ pub mod FluidSimulation {
                     self.v.clone()
                 };
                 // var prevF = component == 0 ? this.prevU : this.prevV;
-                // on component = 0 prevF is a clone of prevU, and when component=1 it's a clone of prevV
+                // doktorhut_flo: prevF is read-only -> borrow the field, no clone.
                 let prevF = if component == 0 {
-                    self.prevU.clone()
+                    &self.prevU
                 } else {
-                    self.prevV.clone()
+                    &self.prevV
                 };
                 // var d = component == 0 ? this.du : this.dv;
                 // on component = 0, d is a clone of du (the change in position per time) and for component=1 it's dv (change in velocity over time)
@@ -944,9 +946,9 @@ pub mod FluidSimulation {
             // this.p.fill(0.0);
             self.p.fill(0.0);
             // this.prevU.set(this.u);
-            self.prevU = self.u.clone();
+            self.prevU.copy_from_slice(&self.u);
             // this.prevV.set(this.v);
-            self.prevV = self.v.clone();
+            self.prevV.copy_from_slice(&self.v);
 
             // var n = this.fNumY;
             let n = self.fNumY;

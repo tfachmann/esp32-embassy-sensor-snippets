@@ -18,37 +18,17 @@ const GRAVITY_SCALE: f32 = 25.0; // accel (g) -> sim gravity (>9.81 = livelier)
 const MAX_SUBSTEPS: u32 = 6; // clamp so a slow frame can't death-spiral
 
 static SCENE: StaticCell<Scene> = StaticCell::new();
-
-pub fn init() -> &'static mut Scene {
-    SCENE.init(Scene::setupScene(PARTICLES))
-}
-
 static DBG: AtomicU32 = AtomicU32::new(0);
 static LAST_MS: AtomicU32 = AtomicU32::new(0);
 
-/// Print the occupancy grid + accel to serial (~every second) to debug the sim.
-fn debug_dump(grid: &[[bool; GRID_W]; GRID_H], ax: f32, ay: f32) {
-    if DBG.fetch_add(1, Ordering::Relaxed) % 25 != 0 {
-        return;
-    }
-    esp_println::println!("--- fluid ax={ax:.2} ay={ay:.2} ---");
-    for row in grid.iter() {
-        let mut line = [b'.'; GRID_W];
-        for (x, &on) in row.iter().enumerate() {
-            if on {
-                line[x] = b'#';
-            }
-        }
-        esp_println::println!("{}", core::str::from_utf8(&line).unwrap_or(""));
-    }
+pub fn init() -> &'static mut Scene {
+    SCENE.init(Scene::setupScene(PARTICLES))
 }
 
 pub fn step_and_render<D>(scene: &mut Scene, display: &mut D, ax: f32, ay: f32)
 where
     D: DrawTarget<Color = BinaryColor>,
 {
-    // Map IMU acceleration to the sim's gravity vector. Sign/axis tuned so that
-    // tilting the board makes the fluid fall the expected way.
     scene.set_gravity([ax * GRAVITY_SCALE, -ay * GRAVITY_SCALE]);
 
     // Advance the sim by the real wall-clock time elapsed since the last frame
@@ -77,5 +57,22 @@ where
                     .draw(display);
             }
         }
+    }
+}
+
+/// Print the occupancy grid + accel to serial (~every second) to debug the sim.
+fn debug_dump(grid: &[[bool; GRID_W]; GRID_H], ax: f32, ay: f32) {
+    if DBG.fetch_add(1, Ordering::Relaxed) % 25 != 0 {
+        return;
+    }
+    esp_println::println!("--- fluid ax={ax:.2} ay={ay:.2} ---");
+    for row in grid.iter() {
+        let mut line = [b'.'; GRID_W];
+        for (x, &on) in row.iter().enumerate() {
+            if on {
+                line[x] = b'#';
+            }
+        }
+        esp_println::println!("{}", core::str::from_utf8(&line).unwrap_or(""));
     }
 }
