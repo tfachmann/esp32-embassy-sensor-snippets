@@ -40,3 +40,6 @@ static_cell = "2.1"
 libm = "0.2"
 edrv-mpu6050 = { git = "https://github.com/embedded-drivers/embedded-drivers.git" }
 dfplayer-async = "0.5.0"
+# Vendored from github.com/Nicholas-L-Johnson/flip-card (MIT), with the grid +
+# particle count reduced so the Scene fits the ESP32 RAM/stack budget.
+fluid_sim = { path = "vendor/fluid_sim" }

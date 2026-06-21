@@ -47,6 +47,7 @@ pub async fn run(i2c: SharedI2c) {
             let pitch = libm::atan2f(-ax, libm::sqrtf(ay * ay + az * az)).to_degrees();
             let roll = libm::atan2f(ay, az).to_degrees();
             control::set_orientation(pitch as i32, roll as i32);
+            control::set_accel(ax, ay, az);
         }
         Timer::after(Duration::from_millis(100)).await;
     }

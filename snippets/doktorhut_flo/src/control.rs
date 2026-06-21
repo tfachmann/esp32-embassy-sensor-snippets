@@ -26,6 +26,11 @@ static BRIGHTNESS: AtomicU32 = AtomicU32::new(5);
 static PITCH: AtomicI32 = AtomicI32::new(0);
 static ROLL: AtomicI32 = AtomicI32::new(0);
 
+// IMU acceleration (g, f32 bits), written by the imu task.
+static ACCEL_X: AtomicU32 = AtomicU32::new(0);
+static ACCEL_Y: AtomicU32 = AtomicU32::new(0);
+static ACCEL_Z: AtomicU32 = AtomicU32::new(0);
+
 pub fn speed() -> u32 {
     SPEED.load(Relaxed)
 }
@@ -104,4 +109,22 @@ pub fn pitch() -> i32 {
 
 pub fn roll() -> i32 {
     ROLL.load(Relaxed)
+}
+
+pub fn set_accel(ax: f32, ay: f32, az: f32) {
+    ACCEL_X.store(ax.to_bits(), Relaxed);
+    ACCEL_Y.store(ay.to_bits(), Relaxed);
+    ACCEL_Z.store(az.to_bits(), Relaxed);
+}
+
+pub fn accel_x() -> f32 {
+    f32::from_bits(ACCEL_X.load(Relaxed))
+}
+
+pub fn accel_y() -> f32 {
+    f32::from_bits(ACCEL_Y.load(Relaxed))
+}
+
+pub fn accel_z() -> f32 {
+    f32::from_bits(ACCEL_Z.load(Relaxed))
 }

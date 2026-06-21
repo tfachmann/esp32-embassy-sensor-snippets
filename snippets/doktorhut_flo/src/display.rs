@@ -13,7 +13,8 @@ use oled_async::builder::Builder;
 use oled_async::prelude::*;
 
 use crate::bus::SharedI2c;
-use crate::{control, ui};
+use crate::ui::ViewScreen;
+use crate::{control, fluid, tilt3d, ui};
 
 struct FmtBuf {
     buf: [u8; 24],
@@ -76,57 +77,79 @@ pub async fn run(i2c: SharedI2c) {
         .text_color(BinaryColor::On)
         .build();
 
+    // FLIP fluid scene lives in a static (it is tens of KB) -- init once.
+    let scene = fluid::init();
+
     loop {
         let view = ui::view();
 
         display.clear();
-        if view.in_controls {
-            draw_text(&mut display, text_style, "= CONTROLS =", 0);
-            for (i, name) in ui::CONTROL_ITEMS.iter().enumerate() {
-                let y = 12 + i as i32 * 10;
-                let cur = i == view.cursor;
-                let marker = if cur {
-                    if view.editing {
-                        "*"
+        match view.screen {
+            ViewScreen::Controls => {
+                draw_text(&mut display, text_style, "= CONTROLS =", 0);
+                for (i, name) in ui::CONTROL_ITEMS.iter().enumerate() {
+                    let y = 12 + i as i32 * 10;
+                    let cur = i == view.cursor;
+                    let marker = if cur {
+                        if view.editing {
+                            "*"
+                        } else {
+                            ">"
+                        }
                     } else {
-                        ">"
-                    }
-                } else {
-                    " "
-                };
-                match i {
-                    0 => row_bar(&mut display, text_style, marker, "Vol", y,
-                        control::volume(), control::VOLUME_MIN, control::VOLUME_MAX),
-                    1 => row_bar(&mut display, text_style, marker, "Spd", y,
-                        control::speed(), control::SPEED_MIN, control::SPEED_MAX),
-                    2 => row_bar(&mut display, text_style, marker, "Brt", y,
-                        control::brightness_level(), control::BRIGHTNESS_MIN, control::BRIGHTNESS_MAX),
-                    3 => {
-                        let mut l = FmtBuf::new();
-                        let _ = write!(l, "{} Fx: {}", marker, control::mode_name(control::mode()));
-                        draw_text(&mut display, text_style, l.as_str(), y);
-                    }
-                    _ => {
-                        let mut l = FmtBuf::new();
-                        let _ = write!(l, "{} {}", marker, name);
-                        draw_text(&mut display, text_style, l.as_str(), y);
+                        " "
+                    };
+                    match i {
+                        0 => row_bar(&mut display, text_style, marker, "Vol", y,
+                            control::volume(), control::VOLUME_MIN, control::VOLUME_MAX),
+                        1 => row_bar(&mut display, text_style, marker, "Spd", y,
+                            control::speed(), control::SPEED_MIN, control::SPEED_MAX),
+                        2 => row_bar(&mut display, text_style, marker, "Brt", y,
+                            control::brightness_level(), control::BRIGHTNESS_MIN, control::BRIGHTNESS_MAX),
+                        3 => {
+                            let mut l = FmtBuf::new();
+                            let _ = write!(l, "{} Fx: {}", marker, control::mode_name(control::mode()));
+                            draw_text(&mut display, text_style, l.as_str(), y);
+                        }
+                        _ => {
+                            let mut l = FmtBuf::new();
+                            let _ = write!(l, "{} {}", marker, name);
+                            draw_text(&mut display, text_style, l.as_str(), y);
+                        }
                     }
                 }
             }
-        } else {
-            draw_text(&mut display, text_style, "== MENU ==", 0);
-            for (i, name) in ui::MAIN_ITEMS.iter().enumerate() {
-                let y = 16 + i as i32 * 14;
-                let marker = if i == view.cursor { ">" } else { " " };
-                let mut l = FmtBuf::new();
-                let _ = write!(l, "{} {}", marker, name);
-                draw_text(&mut display, text_style, l.as_str(), y);
+            ViewScreen::Fluids => {
+                fluid::step_and_render(scene, &mut display, control::accel_x(), control::accel_y());
+            }
+            ViewScreen::Tilt => {
+                tilt3d::render(
+                    &mut display,
+                    control::pitch(),
+                    control::roll(),
+                    control::accel_x(),
+                    control::accel_y(),
+                    control::accel_z(),
+                    text_style,
+                );
+            }
+            ViewScreen::Main => {
+                draw_text(&mut display, text_style, "== MENU ==", 0);
+                for (i, name) in ui::MAIN_ITEMS.iter().enumerate() {
+                    let y = 12 + i as i32 * 10;
+                    let marker = if i == view.cursor { ">" } else { " " };
+                    let mut l = FmtBuf::new();
+                    let _ = write!(l, "{} {}", marker, name);
+                    draw_text(&mut display, text_style, l.as_str(), y);
+                }
             }
         }
         // Ignore flush errors; the next frame retries.
         let _ = display.flush().await;
 
-        Timer::after(Duration::from_millis(40)).await;
+        // The fluid wants to run as fast as the flush allows; menus don't.
+        let frame_ms = if view.screen == ViewScreen::Fluids { 2 } else { 40 };
+        Timer::after(Duration::from_millis(frame_ms)).await;
     }
 }
 
