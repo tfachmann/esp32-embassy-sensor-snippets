@@ -4,16 +4,16 @@ use core::fmt::Write;
 
 use embassy_time::{Duration, Timer};
 use embedded_graphics::mono_font::ascii::FONT_6X10;
-use embedded_graphics::mono_font::MonoTextStyleBuilder;
+use embedded_graphics::mono_font::{MonoTextStyle, MonoTextStyleBuilder};
 use embedded_graphics::pixelcolor::BinaryColor;
 use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
+use embedded_graphics::primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle};
 use embedded_graphics::text::{Baseline, Text};
 use oled_async::builder::Builder;
 use oled_async::prelude::*;
 
 use crate::bus::SharedI2c;
-use crate::control;
+use crate::{control, ui};
 
 struct FmtBuf {
     buf: [u8; 24],
@@ -75,45 +75,104 @@ pub async fn run(i2c: SharedI2c) {
         .font(&FONT_6X10)
         .text_color(BinaryColor::On)
         .build();
-    let box_style = PrimitiveStyle::with_fill(BinaryColor::On);
 
-    let (w, h) = display.get_dimensions();
-    let w = w as i32;
-    let box_w = 10;
-    let track = w - box_w;
-
-    let mut frame: i32 = 0;
     loop {
-        let phase = frame % (2 * track);
-        let x = if phase < track {
-            phase
-        } else {
-            2 * track - phase
-        };
-
-        let mut speed_line = FmtBuf::new();
-        let _ = write!(speed_line, "Speed: {}", control::speed());
-        let mut mode_line = FmtBuf::new();
-        let _ = write!(mode_line, "Mode:  {}", control::mode_name(control::mode()));
-        let mut imu_line = FmtBuf::new();
-        let _ = write!(imu_line, "Tilt P:{} R:{}", control::pitch(), control::roll());
+        let view = ui::view();
 
         display.clear();
-        let _ = Text::with_baseline("Doktorhut Flo", Point::new(0, 0), text_style, Baseline::Top)
-            .draw(&mut display);
-        let _ = Text::with_baseline(speed_line.as_str(), Point::new(0, 14), text_style, Baseline::Top)
-            .draw(&mut display);
-        let _ = Text::with_baseline(mode_line.as_str(), Point::new(0, 26), text_style, Baseline::Top)
-            .draw(&mut display);
-        let _ = Text::with_baseline(imu_line.as_str(), Point::new(0, 38), text_style, Baseline::Top)
-            .draw(&mut display);
-        let _ = Rectangle::new(Point::new(x, h as i32 - 10), Size::new(box_w as u32, 8))
-            .into_styled(box_style)
-            .draw(&mut display);
+        if view.in_controls {
+            draw_text(&mut display, text_style, "= CONTROLS =", 0);
+            for (i, name) in ui::CONTROL_ITEMS.iter().enumerate() {
+                let y = 12 + i as i32 * 10;
+                let cur = i == view.cursor;
+                let marker = if cur {
+                    if view.editing {
+                        "*"
+                    } else {
+                        ">"
+                    }
+                } else {
+                    " "
+                };
+                match i {
+                    0 => row_bar(&mut display, text_style, marker, "Vol", y,
+                        control::volume(), control::VOLUME_MIN, control::VOLUME_MAX),
+                    1 => row_bar(&mut display, text_style, marker, "Spd", y,
+                        control::speed(), control::SPEED_MIN, control::SPEED_MAX),
+                    2 => row_bar(&mut display, text_style, marker, "Brt", y,
+                        control::brightness_level(), control::BRIGHTNESS_MIN, control::BRIGHTNESS_MAX),
+                    3 => {
+                        let mut l = FmtBuf::new();
+                        let _ = write!(l, "{} Fx: {}", marker, control::mode_name(control::mode()));
+                        draw_text(&mut display, text_style, l.as_str(), y);
+                    }
+                    _ => {
+                        let mut l = FmtBuf::new();
+                        let _ = write!(l, "{} {}", marker, name);
+                        draw_text(&mut display, text_style, l.as_str(), y);
+                    }
+                }
+            }
+        } else {
+            draw_text(&mut display, text_style, "== MENU ==", 0);
+            for (i, name) in ui::MAIN_ITEMS.iter().enumerate() {
+                let y = 16 + i as i32 * 14;
+                let marker = if i == view.cursor { ">" } else { " " };
+                let mut l = FmtBuf::new();
+                let _ = write!(l, "{} {}", marker, name);
+                draw_text(&mut display, text_style, l.as_str(), y);
+            }
+        }
         // Ignore flush errors; the next frame retries.
         let _ = display.flush().await;
 
-        frame = frame.wrapping_add(2);
         Timer::after(Duration::from_millis(40)).await;
+    }
+}
+
+fn draw_text<D>(display: &mut D, style: MonoTextStyle<'_, BinaryColor>, text: &str, y: i32)
+where
+    D: DrawTarget<Color = BinaryColor>,
+{
+    let _ = Text::with_baseline(text, Point::new(0, y), style, Baseline::Top).draw(display);
+}
+
+/// A control row: "<marker> <label>" on the left, a value bar on the right.
+fn row_bar<D>(
+    display: &mut D,
+    style: MonoTextStyle<'_, BinaryColor>,
+    marker: &str,
+    label: &str,
+    y: i32,
+    value: u32,
+    min: u32,
+    max: u32,
+) where
+    D: DrawTarget<Color = BinaryColor>,
+{
+    let mut l = FmtBuf::new();
+    let _ = write!(l, "{} {}", marker, label);
+    draw_text(display, style, l.as_str(), y);
+    draw_bar(display, 42, y + 1, 82, 7, value, min, max);
+}
+
+fn draw_bar<D>(display: &mut D, x: i32, y: i32, w: i32, h: i32, value: u32, min: u32, max: u32)
+where
+    D: DrawTarget<Color = BinaryColor>,
+{
+    let outline = PrimitiveStyleBuilder::new()
+        .stroke_color(BinaryColor::On)
+        .stroke_width(1)
+        .build();
+    let _ = Rectangle::new(Point::new(x, y), Size::new(w as u32, h as u32))
+        .into_styled(outline)
+        .draw(display);
+
+    let span = max.saturating_sub(min).max(1);
+    let fill = (w - 2).max(0) as u32 * value.saturating_sub(min) / span;
+    if fill > 0 {
+        let _ = Rectangle::new(Point::new(x + 1, y + 1), Size::new(fill, (h - 2) as u32))
+            .into_styled(PrimitiveStyle::with_fill(BinaryColor::On))
+            .draw(display);
     }
 }

@@ -13,9 +13,6 @@ use effects::{Effect, Packet, Stream};
 /// in the task arena; the default 20480 holds up to ~100 LEDs.
 pub const NUM_LEDS: usize = 60;
 
-/// Global brightness as a right-shift (0 = full, 3 = 1/8).
-pub const BRIGHTNESS_SHIFT: u8 = 3;
-
 /// RGB pixel; driver reorders to WS2812B GRB.
 pub type Rgb = [u8; 3];
 pub type Framebuffer = [Rgb; NUM_LEDS];

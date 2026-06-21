@@ -7,7 +7,8 @@ use embassy_time::{Duration, Instant, Timer};
 use esp_hal::uart::Uart;
 use esp_hal::Async;
 
-const VOLUME: u8 = 15; // 0..=30
+use crate::control;
+
 const TRACK: u16 = 1;
 
 struct TimeSrc;
@@ -36,14 +37,17 @@ pub async fn run(mut uart: Uart<'static, Async>) {
         };
     log::info!("dfplayer initialized");
 
-    if let Err(e) = player.set_volume(VOLUME).await {
-        log::error!("dfplayer set_volume: {e:?}");
-    }
     if let Err(e) = player.play(TRACK).await {
         log::error!("dfplayer play: {e:?}");
     }
 
+    // Apply volume from `control` whenever it changes (menu edits it).
+    let mut applied = u8::MAX;
     loop {
-        Timer::after(Duration::from_millis(500)).await;
+        let want = control::volume() as u8;
+        if want != applied && player.set_volume(want).await.is_ok() {
+            applied = want;
+        }
+        Timer::after(Duration::from_millis(200)).await;
     }
 }

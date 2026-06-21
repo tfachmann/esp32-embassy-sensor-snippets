@@ -17,7 +17,8 @@ use esp_hal::rmt::{
 use esp_hal::time::Rate;
 use esp_hal::Blocking;
 
-use super::{Framebuffer, BRIGHTNESS_SHIFT, NUM_LEDS};
+use super::{Framebuffer, NUM_LEDS};
+use crate::control;
 
 // RMT at 80 MHz, divider 1 -> 12.5 ns/tick. WS2812B timing (+-150 ns):
 const T0H: u16 = 32; // 0.40 us
@@ -89,13 +90,14 @@ impl Ws2812 {
     }
 }
 
-// GRB order, MSB first, with brightness shift applied.
+// GRB order, MSB first, with the current (runtime) brightness shift applied.
 fn encode(buf: &mut [u32; BUF_LEN], fb: &Framebuffer) {
+    let shift = control::brightness_shift();
     let mut i = 0;
     for &[r, g, b] in fb.iter() {
-        let r = r >> BRIGHTNESS_SHIFT;
-        let g = g >> BRIGHTNESS_SHIFT;
-        let b = b >> BRIGHTNESS_SHIFT;
+        let r = r >> shift;
+        let g = g >> shift;
+        let b = b >> shift;
         for byte in [g, r, b] {
             for bit in (0..8).rev() {
                 buf[i] = if (byte >> bit) & 1 == 1 {

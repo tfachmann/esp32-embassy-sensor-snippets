@@ -7,3 +7,4 @@ pub mod display;
 pub mod imu;
 pub mod led_strip;
 pub mod rotary;
+pub mod ui;
