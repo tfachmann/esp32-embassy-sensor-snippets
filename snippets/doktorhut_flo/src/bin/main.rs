@@ -78,9 +78,11 @@ async fn main(spawner: Spawner) {
     spawner.spawn(rotary::read_button(enc_sw)).ok();
 
     // One shared I2C bus for the OLED (0x3C) and the MPU6050 (0x68).
+    // 800kHz to speed up the OLED flush (faster fluid frame rate). The MPU6050
+    // is spec'd for 400kHz -- if it glitches at 800, split it onto I2C1.
     let i2c = esp_hal::i2c::master::I2c::new(
         peripherals.I2C0,
-        esp_hal::i2c::master::Config::default().with_frequency(Rate::from_khz(400)),
+        esp_hal::i2c::master::Config::default().with_frequency(Rate::from_khz(800)),
     )
     .unwrap()
     .with_scl(peripherals.GPIO18)

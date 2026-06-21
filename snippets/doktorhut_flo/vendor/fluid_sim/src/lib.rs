@@ -7,19 +7,19 @@ pub mod FluidSimulation {
 
     use libm::{floorf, sqrtf};
 
-    // doktorhut_flo: grid + particle count reduced from 23x23 / 800 so the
-    // Scene struct fits the ESP32 RAM/stack budget (and runs faster).
-    static max_particles_setting: usize = 144;
-    static number_of_vertical_cells_setting: usize = 13;
-    static number_of_horizontal_cells_setting: usize = 13;
+    // doktorhut_flo: non-square 26x14 grid (W x H) to fill the 128x64 panel,
+    // sized down from 23x23/800 so the Scene fits the ESP32 RAM budget.
+    static max_particles_setting: usize = 450;
+    static number_of_vertical_cells_setting: usize = 14; // H (also the cell stride)
+    static number_of_horizontal_cells_setting: usize = 26; // W
     static max_particles_x2_setting: usize = max_particles_setting * 2;
     static number_of_cells_setting: usize =
         number_of_vertical_cells_setting * number_of_horizontal_cells_setting;
     static number_of_cells_x2_setting: usize = number_of_cells_setting * 2;
     static number_of_cells_setting_plus1: usize = number_of_cells_setting + 1;
 
-    static simHeight: f32 = 13.0;
-    static simWidth: f32 = 13.0;
+    static simHeight: f32 = 14.0;
+    static simWidth: f32 = 26.0;
 
     #[derive(PartialEq, Clone, Copy)]
     pub enum CellType {
@@ -151,8 +151,9 @@ pub mod FluidSimulation {
             // this.particlePos = new Float32Array(2 * this.maxParticles);
             let mut particlePos = [0.0; max_particles_x2_setting];
             let mut count: usize = 0;
-            for i in 1..13 {
-                for j in 1..13 {
+            // seed a 30(x) x 15(y) block = 450 particles in the lower-left
+            for i in 1..16 {
+                for j in 1..31 {
                     particlePos[count * 2] = (j as f32) / 2.0;
                     particlePos[count * 2 + 1] = (i as f32) / 2.0;
                     count += 1;
@@ -431,14 +432,13 @@ pub mod FluidSimulation {
             // var minDist2 = minDist * minDist;
             // let minDist2 = minDist * minDist;
 
-            // var minX = h + r;
-            let minX = 1.0;
-            // var maxX = (this.fNumX - 1) * h - r;
-            let maxX = 11.0;
-            // var minY = h + r;
-            let minY = 1.0;
-            // var maxY = (this.fNumY - 1) * h - r;
-            let maxY = 11.0;
+            // doktorhut_flo: field-based bounds so X and Y differ (non-square grid)
+            let h = self.h;
+            let r = self.particleRadius;
+            let minX = h + r;
+            let maxX = (self.fNumX - 1.0) * h - r;
+            let minY = h + r;
+            let maxY = (self.fNumY - 1.0) * h - r;
 
             // for (var i = 0; i < this.numParticles; i++) {
             for i in 0..self.numParticles {
@@ -1134,7 +1134,7 @@ pub mod FluidSimulation {
             let numParticleIters = 1;
 
             // var res = 100;
-            let res = 13.0;
+            let res = 14.0; // = simHeight so h = simHeight/res = 1
             // var tankHeight = 1.0 * simHeight;
             let tankHeight = 1.0 * simHeight;
             // var tankWidth = 1.0 * simWidth;
@@ -1273,11 +1273,15 @@ pub mod FluidSimulation {
             self.xGravity = accel_measurment[0];
             self.yGravity = accel_measurment[1];
         }
-        pub fn get_output(&mut self) -> [[bool; 11]; 11] {
-            let mut output_frame: [[bool; 11]; 11] = [[false; 11]; 11];
-            for i in 1..12 {
-                for j in 1..12 {
-                    if self.fluid.cellType[i * 13 + j] == CellType::FLUID_CELL {
+        // 26x14 grid -> (W-2) x (H-2) = 24 x 12 visible cells. output[y][x].
+        // cell stride = fNumY = number_of_vertical_cells_setting (14).
+        pub fn get_output(&mut self) -> [[bool; 24]; 12] {
+            let mut output_frame: [[bool; 24]; 12] = [[false; 24]; 12];
+            for i in 1..25 {
+                for j in 1..13 {
+                    if self.fluid.cellType[i * number_of_vertical_cells_setting + j]
+                        == CellType::FLUID_CELL
+                    {
                         output_frame[j - 1][i - 1] = true;
                     }
                 }

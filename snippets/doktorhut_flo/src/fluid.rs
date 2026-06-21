@@ -10,10 +10,11 @@ use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
 use fluid_sim::FluidSimulation::Scene;
 use static_cell::StaticCell;
 
-const PARTICLES: i32 = 144; // tune for speed vs. fill (vendored grid seeds 144)
-const GRID: i32 = 11; // get_output() is 11x11 (vendored 13x13 grid - 2)
-const CELL: i32 = 5; // pixels per cell -> 55px, centered on 128x64
-const GRAVITY_SCALE: f32 = 9.81; // accel (g) -> sim gravity
+const PARTICLES: i32 = 450; // tune for speed vs. fill (vendored grid seeds 450)
+const GRID_W: usize = 24; // get_output() is 24x12 (vendored 26x14 grid - 2)
+const GRID_H: usize = 12;
+const CELL: i32 = 5; // pixels per cell -> 120x60, near-full 128x64
+const GRAVITY_SCALE: f32 = 25.0; // accel (g) -> sim gravity (>9.81 = livelier)
 const MAX_SUBSTEPS: u32 = 6; // clamp so a slow frame can't death-spiral
 
 static SCENE: StaticCell<Scene> = StaticCell::new();
@@ -26,13 +27,13 @@ static DBG: AtomicU32 = AtomicU32::new(0);
 static LAST_MS: AtomicU32 = AtomicU32::new(0);
 
 /// Print the occupancy grid + accel to serial (~every second) to debug the sim.
-fn debug_dump(grid: &[[bool; 11]; 11], ax: f32, ay: f32) {
+fn debug_dump(grid: &[[bool; GRID_W]; GRID_H], ax: f32, ay: f32) {
     if DBG.fetch_add(1, Ordering::Relaxed) % 25 != 0 {
         return;
     }
     esp_println::println!("--- fluid ax={ax:.2} ay={ay:.2} ---");
     for row in grid.iter() {
-        let mut line = [b'.'; 11];
+        let mut line = [b'.'; GRID_W];
         for (x, &on) in row.iter().enumerate() {
             if on {
                 line[x] = b'#';
@@ -63,8 +64,8 @@ where
 
     let grid = scene.get_output(); // [y][x] occupancy
     debug_dump(&grid, ax, ay);
-    let x_off = (128 - GRID * CELL) / 2;
-    let y_off = (64 - GRID * CELL) / 2;
+    let x_off = (128 - GRID_W as i32 * CELL) / 2;
+    let y_off = (64 - GRID_H as i32 * CELL) / 2;
     let style = PrimitiveStyle::with_fill(BinaryColor::On);
     for (y, row) in grid.iter().enumerate() {
         for (x, &on) in row.iter().enumerate() {

@@ -31,7 +31,7 @@ const BUF_LEN: usize = NUM_LEDS * 24 + 1;
 // Pulse buffers live in static memory, not the embassy task arena: each one is
 // ~`NUM_LEDS * 96` bytes and would otherwise blow the arena. Bump MAX_STRIPS to
 // drive more strips.
-const MAX_STRIPS: usize = 4;
+const MAX_STRIPS: usize = 3;
 const MEMSIZE: u8 = 2;
 static mut PULSE_BUFS: [[u32; BUF_LEN]; MAX_STRIPS] = [[0; BUF_LEN]; MAX_STRIPS];
 static NEXT_BUF: AtomicUsize = AtomicUsize::new(0);
