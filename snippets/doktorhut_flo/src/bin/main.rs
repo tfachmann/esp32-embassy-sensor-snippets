@@ -14,8 +14,10 @@ use embassy_sync::mutex::Mutex;
 use embassy_time::{Duration, Timer};
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{Input, InputConfig, Level, Output, OutputConfig, Pull};
+use esp_hal::system::{AppCoreGuard, CpuControl, Stack};
 use esp_hal::time::Rate;
 use esp_hal::timer::timg::TimerGroup;
+use esp_hal_embassy::Executor;
 use esp_println::logger::init_logger;
 use static_cell::StaticCell;
 use log::{error, info};
@@ -101,11 +103,29 @@ async fn main(spawner: Spawner) {
     .into_async();
     spawner.spawn(dfplayer::run(uart)).ok();
 
+    // The LED strip writes are blocking busy-waits; run them on the second core
+    // (APP core) so they never starve the UI tasks above on core0.
     let rmt = led_strip::new_rmt(peripherals.RMT);
     let strip0 = led_strip::Ws2812::new(rmt.channel0, peripherals.GPIO25);
     let strip1 = led_strip::Ws2812::new(rmt.channel2, peripherals.GPIO32);
     let strip2 = led_strip::Ws2812::new(rmt.channel4, peripherals.GPIO33);
-    spawner.spawn(led_strip::run(strip0)).ok();
-    spawner.spawn(led_strip::run(strip1)).ok();
-    spawner.spawn(led_strip::run(strip2)).ok();
+
+    static APP_CORE_STACK: StaticCell<Stack<8192>> = StaticCell::new();
+    static APP_EXECUTOR: StaticCell<Executor> = StaticCell::new();
+    static GUARD: StaticCell<AppCoreGuard> = StaticCell::new();
+
+    let stack = APP_CORE_STACK.init(Stack::new());
+    let mut cpu_control = CpuControl::new(peripherals.CPU_CTRL);
+    let guard = cpu_control
+        .start_app_core(stack, move || {
+            let executor = APP_EXECUTOR.init(Executor::new());
+            executor.run(|spawner| {
+                spawner.spawn(led_strip::run(strip0)).ok();
+                spawner.spawn(led_strip::run(strip1)).ok();
+                spawner.spawn(led_strip::run(strip2)).ok();
+            });
+        })
+        .unwrap();
+    // Keep the guard alive for the whole program (dropping it parks the app core).
+    GUARD.init(guard);
 }

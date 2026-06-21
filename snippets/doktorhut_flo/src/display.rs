@@ -50,10 +50,26 @@ pub async fn run(i2c: SharedI2c) {
         .with_rotation(DisplayRotation::Rotate0)
         .connect(interface);
     let mut display: GraphicsMode<_, _> = raw_disp.into();
-    display.init().await.unwrap();
+
+    // Retry init rather than unwrap -- a NACK on a cold boot must not panic
+    // (that would freeze everything). Give up gracefully if no display.
+    let mut ready = false;
+    for _ in 0..20 {
+        if display.init().await.is_ok() {
+            ready = true;
+            break;
+        }
+        log::warn!("display init failed, retrying...");
+        Timer::after(Duration::from_millis(100)).await;
+    }
+    if !ready {
+        log::error!("no display connected; continuing without display");
+        return;
+    }
+
     // SH1106 GDDRAM holds garbage on power-up.
     display.clear();
-    display.flush().await.unwrap();
+    let _ = display.flush().await;
 
     let text_style = MonoTextStyleBuilder::new()
         .font(&FONT_6X10)
@@ -83,23 +99,19 @@ pub async fn run(i2c: SharedI2c) {
         let _ = write!(imu_line, "Tilt P:{} R:{}", control::pitch(), control::roll());
 
         display.clear();
-        Text::with_baseline("Doktorhut Flo", Point::new(0, 0), text_style, Baseline::Top)
-            .draw(&mut display)
-            .unwrap();
-        Text::with_baseline(speed_line.as_str(), Point::new(0, 14), text_style, Baseline::Top)
-            .draw(&mut display)
-            .unwrap();
-        Text::with_baseline(mode_line.as_str(), Point::new(0, 26), text_style, Baseline::Top)
-            .draw(&mut display)
-            .unwrap();
-        Text::with_baseline(imu_line.as_str(), Point::new(0, 38), text_style, Baseline::Top)
-            .draw(&mut display)
-            .unwrap();
-        Rectangle::new(Point::new(x, h as i32 - 10), Size::new(box_w as u32, 8))
+        let _ = Text::with_baseline("Doktorhut Flo", Point::new(0, 0), text_style, Baseline::Top)
+            .draw(&mut display);
+        let _ = Text::with_baseline(speed_line.as_str(), Point::new(0, 14), text_style, Baseline::Top)
+            .draw(&mut display);
+        let _ = Text::with_baseline(mode_line.as_str(), Point::new(0, 26), text_style, Baseline::Top)
+            .draw(&mut display);
+        let _ = Text::with_baseline(imu_line.as_str(), Point::new(0, 38), text_style, Baseline::Top)
+            .draw(&mut display);
+        let _ = Rectangle::new(Point::new(x, h as i32 - 10), Size::new(box_w as u32, 8))
             .into_styled(box_style)
-            .draw(&mut display)
-            .unwrap();
-        display.flush().await.unwrap();
+            .draw(&mut display);
+        // Ignore flush errors; the next frame retries.
+        let _ = display.flush().await;
 
         frame = frame.wrapping_add(2);
         Timer::after(Duration::from_millis(40)).await;
