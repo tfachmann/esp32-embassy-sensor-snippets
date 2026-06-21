@@ -14,15 +14,17 @@ const PARTICLES: i32 = 200; // tune for speed vs. fill (vendored grid seeds 200)
 const GRID_W: usize = 24; // get_output() is 24x12 (vendored 26x14 grid - 2)
 const GRID_H: usize = 12;
 const CELL: i32 = 5; // pixels per cell -> 120x60, near-full 128x64
-const GRAVITY_SCALE: f32 = 25.0; // accel (g) -> sim gravity (>9.81 = livelier)
+const GRAVITY_SCALE: f32 = 20.0; // accel (g) -> sim gravity (>9.81 = livelier)
+const FLIP_RATIO: f32 = 0.90; // FLIP/PIC blend = viscosity: lower = more viscous
 const MAX_SUBSTEPS: u32 = 6; // clamp so a slow frame can't death-spiral
 
 static SCENE: StaticCell<Scene> = StaticCell::new();
-static DBG: AtomicU32 = AtomicU32::new(0);
 static LAST_MS: AtomicU32 = AtomicU32::new(0);
 
 pub fn init() -> &'static mut Scene {
-    SCENE.init(Scene::setupScene(PARTICLES))
+    let scene = SCENE.init(Scene::setupScene(PARTICLES));
+    scene.set_flip_ratio(FLIP_RATIO);
+    scene
 }
 
 pub fn step_and_render<D>(scene: &mut Scene, display: &mut D, ax: f32, ay: f32)
@@ -43,7 +45,6 @@ where
     }
 
     let grid = scene.get_output(); // [y][x] occupancy
-    debug_dump(&grid, ax, ay);
     let x_off = (128 - GRID_W as i32 * CELL) / 2;
     let y_off = (64 - GRID_H as i32 * CELL) / 2;
     let style = PrimitiveStyle::with_fill(BinaryColor::On);
@@ -57,22 +58,5 @@ where
                     .draw(display);
             }
         }
-    }
-}
-
-/// Print the occupancy grid + accel to serial (~every second) to debug the sim.
-fn debug_dump(grid: &[[bool; GRID_W]; GRID_H], ax: f32, ay: f32) {
-    if DBG.fetch_add(1, Ordering::Relaxed) % 25 != 0 {
-        return;
-    }
-    esp_println::println!("--- fluid ax={ax:.2} ay={ay:.2} ---");
-    for row in grid.iter() {
-        let mut line = [b'.'; GRID_W];
-        for (x, &on) in row.iter().enumerate() {
-            if on {
-                line[x] = b'#';
-            }
-        }
-        esp_println::println!("{}", core::str::from_utf8(&line).unwrap_or(""));
     }
 }

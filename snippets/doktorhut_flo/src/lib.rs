@@ -1,5 +1,6 @@
 #![no_std]
 
+pub mod about;
 pub mod bus;
 pub mod control;
 pub mod dfplayer;

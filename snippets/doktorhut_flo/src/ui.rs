@@ -20,6 +20,7 @@ enum Screen {
     Controls,
     Fluids,
     Tilt,
+    About,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -28,14 +29,16 @@ pub enum ViewScreen {
     Controls,
     Fluids,
     Tilt,
+    About,
 }
 
-pub const MAIN_ITEMS: [&str; 5] = ["BEER", "MUSIC", "FLUIDS", "TILT", "CONTROLS"];
+pub const MAIN_ITEMS: [&str; 6] = ["BEER", "MUSIC", "FLUIDS", "TILT", "ABOUT", "CONTROLS"];
 pub const CONTROL_ITEMS: [&str; 5] = ["Volume", "LED Speed", "LED Bright", "LED Effect", "Back"];
 
 const MAIN_FLUIDS: usize = 2; // index of "FLUIDS" in MAIN_ITEMS
 const MAIN_TILT: usize = 3; // index of "TILT" in MAIN_ITEMS
-const MAIN_CONTROLS: usize = 4; // index of "CONTROLS" in MAIN_ITEMS
+const MAIN_ABOUT: usize = 4; // index of "ABOUT" in MAIN_ITEMS
+const MAIN_CONTROLS: usize = 5; // index of "CONTROLS" in MAIN_ITEMS
 const CONTROLS_BACK: usize = 4; // index of "Back" in CONTROL_ITEMS
 
 struct Ui {
@@ -66,6 +69,7 @@ pub fn view() -> View {
                 Screen::Controls => ViewScreen::Controls,
                 Screen::Fluids => ViewScreen::Fluids,
                 Screen::Tilt => ViewScreen::Tilt,
+                Screen::About => ViewScreen::About,
             },
             cursor: ui.cursor,
             editing: ui.editing,
@@ -87,6 +91,7 @@ pub fn on_input(ev: Event) {
                     }
                     MAIN_FLUIDS => ui.screen = Screen::Fluids,
                     MAIN_TILT => ui.screen = Screen::Tilt,
+                    MAIN_ABOUT => ui.screen = Screen::About,
                     _ => {} // BEER / MUSIC: no-op for now.
                 },
             },
@@ -101,6 +106,12 @@ pub fn on_input(ev: Event) {
                 if let Event::Click = ev {
                     ui.screen = Screen::Main;
                     ui.cursor = MAIN_TILT;
+                }
+            }
+            Screen::About => {
+                if let Event::Click = ev {
+                    ui.screen = Screen::Main;
+                    ui.cursor = MAIN_ABOUT;
                 }
             }
             Screen::Controls if ui.editing => match ev {

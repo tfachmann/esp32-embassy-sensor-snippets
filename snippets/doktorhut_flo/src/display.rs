@@ -14,7 +14,7 @@ use oled_async::prelude::*;
 
 use crate::bus::SharedI2c;
 use crate::ui::ViewScreen;
-use crate::{control, fluid, tilt3d, ui};
+use crate::{about, control, fluid, tilt3d, ui};
 
 struct FmtBuf {
     buf: [u8; 24],
@@ -122,6 +122,9 @@ pub async fn run(i2c: SharedI2c) {
             ViewScreen::Fluids => {
                 fluid::step_and_render(scene, &mut display, control::accel_x(), control::accel_y());
             }
+            ViewScreen::About => {
+                about::render(&mut display, text_style);
+            }
             ViewScreen::Tilt => {
                 tilt3d::render(
                     &mut display,
@@ -134,9 +137,9 @@ pub async fn run(i2c: SharedI2c) {
                 );
             }
             ViewScreen::Main => {
-                draw_text(&mut display, text_style, "== MENU ==", 0);
+                // 6 items: no header so they all fit (rows y=2,12,..,52).
                 for (i, name) in ui::MAIN_ITEMS.iter().enumerate() {
-                    let y = 12 + i as i32 * 10;
+                    let y = 2 + i as i32 * 10;
                     let marker = if i == view.cursor { ">" } else { " " };
                     let mut l = FmtBuf::new();
                     let _ = write!(l, "{} {}", marker, name);

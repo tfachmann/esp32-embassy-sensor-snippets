@@ -1275,6 +1275,10 @@ pub mod FluidSimulation {
             self.xGravity = accel_measurment[0];
             self.yGravity = accel_measurment[1];
         }
+        // doktorhut_flo: expose the FLIP/PIC blend (viscosity) knob.
+        pub fn set_flip_ratio(&mut self, flip_ratio: f32) {
+            self.flipRatio = flip_ratio;
+        }
         // 26x14 grid -> (W-2) x (H-2) = 24 x 12 visible cells. output[y][x].
         // cell stride = fNumY = number_of_vertical_cells_setting (14).
         pub fn get_output(&mut self) -> [[bool; 24]; 12] {
