@@ -48,15 +48,36 @@ async fn drive_to(tx: &mut UartTx<'static, Async>, pos: u16) {
 
 #[embassy_executor::task]
 pub async fn run(mut tx: UartTx<'static, Async>) {
+    let mut manual_was = false;
+    let mut last_pos = 0u16;
     loop {
         // Start only when the beer byte has visually travelled the strip and
         // reached the servo. Travel time follows NUM_LEDS x the configurable
         // LED speed, so the sync stays correct for any strip length / speed.
-        if control::take_beer_arrived() {
+        // Consume the arrival event, but only run the pour sequence outside
+        // manual mode (in manual the byte is just a visual flourish per tick).
+        let arrived = control::take_beer_arrived();
+        if arrived && !control::manual_on() {
+            control::set_beer_pouring(true); // keep BEER indicator lit during pour
             for &pos in SEQUENCE.iter() {
                 drive_to(&mut tx, pos).await;
                 Timer::after(Duration::from_millis(STEP_MS)).await;
             }
+            control::set_beer_pouring(false);
+        }
+        // BEER MANUAL: drive only when the encoder actually changes the target.
+        // On entry, sync the last value without moving (don't jump on open).
+        if control::manual_on() {
+            let pos = control::servo_pos() as u16;
+            if !manual_was {
+                last_pos = pos;
+            } else if pos != last_pos {
+                drive_to(&mut tx, pos).await;
+                last_pos = pos;
+            }
+            manual_was = true;
+        } else {
+            manual_was = false;
         }
         Timer::after(Duration::from_millis(20)).await;
     }

@@ -23,6 +23,8 @@ const BEER_BYTE: u8 = 0b1011_0010;
 // Beer byte travels at this fraction of the configured LED speed (slower than
 // the stream, but still scales with it -> servo triggers earlier when faster).
 const BEER_SPEED_DIV: u32 = 4;
+// Beer byte velocity (Q8.8 LEDs/frame) in BEER MANUAL: fast, but not instant.
+const BEER_MANUAL_VEL_Q8: i32 = 4 * 256;
 
 #[embassy_executor::task(pool_size = 4)]
 pub async fn run(mut strip: Ws2812) {
@@ -57,7 +59,13 @@ pub async fn run(mut strip: Ws2812) {
         }
         beer_was_on = beer_on;
         if beer_on {
-            let beer_vel = (control::velocity_q8() / BEER_SPEED_DIV).max(1) as i32;
+            // Manual mode: byte flows very fast. Otherwise it scales with the
+            // configured LED speed (slower, so the servo triggers in sync).
+            let beer_vel = if control::manual_on() {
+                BEER_MANUAL_VEL_Q8
+            } else {
+                (control::velocity_q8() / BEER_SPEED_DIV).max(1) as i32
+            };
             beer.overlay(&mut fb, beer_vel);
             if beer.finished() {
                 // The byte reached the strip end -> the servo (the beer tap).

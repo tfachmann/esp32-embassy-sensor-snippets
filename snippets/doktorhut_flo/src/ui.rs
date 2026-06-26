@@ -26,6 +26,7 @@ enum Screen {
     Fluids,
     Tilt,
     About,
+    BeerManual,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -35,35 +36,42 @@ pub enum ViewScreen {
     Fluids,
     Tilt,
     About,
+    BeerManual,
 }
 
-pub const MAIN_ITEMS: [&str; 7] =
-    ["BEER", "MUSIC", "IMU", "FLUIDS", "TILT", "ABOUT", "CONTROLS"];
+pub const MAIN_ITEMS: [&str; 8] = [
+    "BEER", "BEER MAN", "MUSIC", "IMU", "FLUIDS", "TILT", "ABOUT", "CONTROLS",
+];
 pub const CONTROL_ITEMS: [&str; 4] = ["Volume", "LED Speed", "LED Bright", "Back"];
 
 /// The first PROCESS_COUNT MAIN_ITEMS are "processes" (highlight selection +
 /// status rects); the rest are normal entries (">" cursor).
-pub const PROCESS_COUNT: usize = 5;
+pub const PROCESS_COUNT: usize = 6;
+
+/// Index of the IMU process in MAIN_ITEMS (its status rect blinks while ramping).
+pub const MAIN_IMU: usize = 3;
 
 const MAIN_BEER: usize = 0;
-const MAIN_MUSIC: usize = 1;
-const MAIN_IMU: usize = 2;
-const MAIN_FLUIDS: usize = 3;
-const MAIN_TILT: usize = 4;
-const MAIN_ABOUT: usize = 5;
-const MAIN_CONTROLS: usize = 6;
+const MAIN_BEERMAN: usize = 1;
+const MAIN_MUSIC: usize = 2;
+const MAIN_FLUIDS: usize = 4;
+const MAIN_TILT: usize = 5;
+const MAIN_ABOUT: usize = 6;
+const MAIN_CONTROLS: usize = 7;
 const CONTROLS_BACK: usize = 3; // index of "Back" in CONTROL_ITEMS
 
 struct Ui {
     screen: Screen,
     cursor: usize,
     editing: bool,
+    pending: Option<Screen>, // screen to auto-enter once the IMU is ready
 }
 
 static UI: Mutex<RefCell<Ui>> = Mutex::new(RefCell::new(Ui {
     screen: Screen::Main,
     cursor: 0,
     editing: false,
+    pending: None,
 }));
 
 /// Snapshot for the display.
@@ -83,6 +91,7 @@ pub fn view() -> View {
                 Screen::Fluids => ViewScreen::Fluids,
                 Screen::Tilt => ViewScreen::Tilt,
                 Screen::About => ViewScreen::About,
+                Screen::BeerManual => ViewScreen::BeerManual,
             },
             cursor: ui.cursor,
             editing: ui.editing,
@@ -94,7 +103,9 @@ pub fn on_input(ev: Event) {
     critical_section::with(|cs| {
         let mut ui = UI.borrow_ref_mut(cs);
         match ui.screen {
-            Screen::Main => match ev {
+            Screen::Main => {
+                ui.pending = None; // any menu interaction cancels a pending auto-launch
+                match ev {
                 Event::Left => ui.cursor = wrap_prev(ui.cursor, MAIN_ITEMS.len()),
                 Event::Right => ui.cursor = wrap_next(ui.cursor, MAIN_ITEMS.len()),
                 Event::Click => match ui.cursor {
@@ -103,6 +114,10 @@ pub fn on_input(ev: Event) {
                     MAIN_IMU => control::toggle_imu(now_ms()),
                     MAIN_FLUIDS => enter_with_imu(&mut ui, Screen::Fluids),
                     MAIN_TILT => enter_with_imu(&mut ui, Screen::Tilt),
+                    MAIN_BEERMAN => {
+                        control::set_manual_active(true);
+                        ui.screen = Screen::BeerManual;
+                    }
                     MAIN_ABOUT => ui.screen = Screen::About,
                     MAIN_CONTROLS => {
                         ui.screen = Screen::Controls;
@@ -110,7 +125,8 @@ pub fn on_input(ev: Event) {
                     }
                     _ => {}
                 },
-            },
+                }
+            }
             Screen::Fluids => {
                 // Rotation ignored; click returns to the main menu.
                 if let Event::Click = ev {
@@ -132,6 +148,22 @@ pub fn on_input(ev: Event) {
                     ui.cursor = MAIN_ABOUT;
                 }
             }
+            Screen::BeerManual => match ev {
+                // Rotation drives the servo and flows a (fast) beer byte; click exits.
+                Event::Left => {
+                    control::servo_step(true);
+                    control::start_beer();
+                }
+                Event::Right => {
+                    control::servo_step(false);
+                    control::start_beer();
+                }
+                Event::Click => {
+                    control::set_manual_active(false);
+                    ui.screen = Screen::Main;
+                    ui.cursor = MAIN_BEERMAN;
+                }
+            },
             Screen::Controls if ui.editing => match ev {
                 Event::Left => edit_value(ui.cursor, false),
                 Event::Right => edit_value(ui.cursor, true),
@@ -153,21 +185,41 @@ pub fn on_input(ev: Event) {
     });
 }
 
-/// Enter a screen that needs the IMU. If the IMU is ready, enter it; otherwise
-/// (first click) just start the IMU and stay on the menu -- the IMU status block
-/// animates "not ready" during the ramp. Click again once ready to enter.
+fn activate(target: Screen) {
+    match target {
+        Screen::Fluids => control::set_fluids_active(true),
+        Screen::Tilt => control::set_tilt_active(true),
+        _ => {}
+    }
+}
+
+/// Enter a screen that needs the IMU. If the IMU is ready, enter now; otherwise
+/// start it and stay on the menu (the IMU block blinks while ramping). Once
+/// ready, `poll()` auto-enters the pending screen.
 fn enter_with_imu(ui: &mut Ui, target: Screen) {
     if control::imu_ready(now_ms()) {
-        match target {
-            Screen::Fluids => control::set_fluids_active(true),
-            Screen::Tilt => control::set_tilt_active(true),
-            _ => {}
-        }
+        activate(target);
         ui.screen = target;
-    } else if !control::imu_on() {
-        control::set_imu(true, now_ms()); // start ramping; stay on the menu
+    } else {
+        if !control::imu_on() {
+            control::set_imu(true, now_ms());
+        }
+        ui.pending = Some(target);
     }
-    // ramping (on but not ready): stay on the menu, ignore.
+}
+
+/// Called each display frame: auto-enter a pending IMU screen once ready.
+pub fn poll() {
+    critical_section::with(|cs| {
+        let mut ui = UI.borrow_ref_mut(cs);
+        if let Some(target) = ui.pending {
+            if control::imu_ready(now_ms()) {
+                activate(target);
+                ui.screen = target;
+                ui.pending = None;
+            }
+        }
+    });
 }
 
 fn edit_value(item: usize, up: bool) {

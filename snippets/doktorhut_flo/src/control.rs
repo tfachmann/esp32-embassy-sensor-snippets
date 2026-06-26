@@ -25,10 +25,20 @@ static BEER_ON: AtomicBool = AtomicBool::new(false);
 // Set by led_strip when the beer byte reaches the end of the strip (= arrives
 // at the servo); consumed by the servo task to start its sequence.
 static BEER_ARRIVED: AtomicBool = AtomicBool::new(false);
+// True while the servo runs the automatic pour sequence (keeps the BEER
+// process indicator lit for the whole pour, not just the LED byte).
+static BEER_POURING: AtomicBool = AtomicBool::new(false);
 static MUSIC_ON: AtomicBool = AtomicBool::new(false);
 static IMU_ON: AtomicBool = AtomicBool::new(false);
 static FLUIDS_ON: AtomicBool = AtomicBool::new(false);
 static TILT_ON: AtomicBool = AtomicBool::new(false);
+static MANUAL_ON: AtomicBool = AtomicBool::new(false);
+
+// Manual servo target (0..4095), driven by the encoder in the BEER MANUAL screen.
+pub const SERVO_MIN: u32 = 0;
+pub const SERVO_MAX: u32 = 4095;
+const SERVO_STEP: u32 = 40;
+static SERVO_POS: AtomicU32 = AtomicU32::new(2048);
 
 // IMU brightness ramp: ms timestamp when the IMU turned on (0 = off/not ramping).
 pub const IMU_RAMP_MS: u32 = 2500;
@@ -83,6 +93,10 @@ pub fn take_beer_arrived() -> bool {
     BEER_ARRIVED.swap(false, Relaxed)
 }
 
+pub fn set_beer_pouring(on: bool) {
+    BEER_POURING.store(on, Relaxed);
+}
+
 pub fn music_on() -> bool {
     MUSIC_ON.load(Relaxed)
 }
@@ -132,14 +146,36 @@ pub fn set_tilt_active(on: bool) {
     TILT_ON.store(on, Relaxed);
 }
 
-/// Running state of process `i` (0=beer,1=music,2=imu,3=fluids,4=tilt).
+pub fn manual_on() -> bool {
+    MANUAL_ON.load(Relaxed)
+}
+pub fn set_manual_active(on: bool) {
+    MANUAL_ON.store(on, Relaxed);
+}
+
+pub fn servo_pos() -> u32 {
+    SERVO_POS.load(Relaxed)
+}
+pub fn servo_step(up: bool) {
+    let p = servo_pos();
+    let n = if up {
+        (p + SERVO_STEP).min(SERVO_MAX)
+    } else {
+        p.saturating_sub(SERVO_STEP).max(SERVO_MIN)
+    };
+    SERVO_POS.store(n, Relaxed);
+}
+
+/// Running state of process `i`, matching MAIN_ITEMS order
+/// (0=beer,1=manual,2=music,3=imu,4=fluids,5=tilt).
 pub fn process_running(i: usize) -> bool {
     match i {
-        0 => beer_on(),
-        1 => music_on(),
-        2 => imu_on(),
-        3 => FLUIDS_ON.load(Relaxed),
-        4 => TILT_ON.load(Relaxed),
+        0 => beer_on() || BEER_POURING.load(Relaxed),
+        1 => manual_on(),
+        2 => music_on(),
+        3 => imu_on(),
+        4 => FLUIDS_ON.load(Relaxed),
+        5 => TILT_ON.load(Relaxed),
         _ => false,
     }
 }
