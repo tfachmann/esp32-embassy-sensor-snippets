@@ -22,6 +22,9 @@ static BRIGHTNESS: AtomicU32 = AtomicU32::new(5);
 // Process running state (all off at boot). Indices for process_running():
 // 0=beer, 1=music, 2=imu, 3=fluids, 4=tilt.
 static BEER_ON: AtomicBool = AtomicBool::new(false);
+// Set by led_strip when the beer byte reaches the end of the strip (= arrives
+// at the servo); consumed by the servo task to start its sequence.
+static BEER_ARRIVED: AtomicBool = AtomicBool::new(false);
 static MUSIC_ON: AtomicBool = AtomicBool::new(false);
 static IMU_ON: AtomicBool = AtomicBool::new(false);
 static FLUIDS_ON: AtomicBool = AtomicBool::new(false);
@@ -68,6 +71,16 @@ pub fn start_beer() {
 }
 pub fn clear_beer() {
     BEER_ON.store(false, Relaxed);
+}
+
+/// led_strip signals that the beer byte reached the strip end (the servo).
+pub fn signal_beer_arrived() {
+    BEER_ARRIVED.store(true, Relaxed);
+}
+
+/// Servo consumes the arrival event (returns true once per arrival, then clears).
+pub fn take_beer_arrived() -> bool {
+    BEER_ARRIVED.swap(false, Relaxed)
 }
 
 pub fn music_on() -> bool {

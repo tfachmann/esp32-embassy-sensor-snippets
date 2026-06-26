@@ -7,7 +7,7 @@
 )]
 
 use doktorhut_flo::bus::SharedBus;
-use doktorhut_flo::{dfplayer, display, imu, led_strip, rotary};
+use doktorhut_flo::{dfplayer, display, imu, led_strip, rotary, servo};
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::Spawner;
 use embassy_sync::mutex::Mutex;
@@ -104,6 +104,16 @@ async fn main(spawner: Spawner) {
     .with_tx(peripherals.GPIO17)
     .into_async();
     spawner.spawn(dfplayer::run(uart)).ok();
+
+    // STS3215 servo on UART2 / GPIO14 (1 Mbps, TX only). BEER triggers a pour.
+    let servo_tx = esp_hal::uart::UartTx::new(
+        peripherals.UART2,
+        esp_hal::uart::Config::default().with_baudrate(1_000_000),
+    )
+    .unwrap()
+    .with_tx(peripherals.GPIO14)
+    .into_async();
+    spawner.spawn(servo::run(servo_tx)).ok();
 
     // The LED strip writes are blocking busy-waits; run them on the second core
     // (APP core) so they never starve the UI tasks above on core0.

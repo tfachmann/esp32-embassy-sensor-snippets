@@ -20,6 +20,9 @@ pub type Framebuffer = [Rgb; NUM_LEDS];
 const FRAME_MS: u64 = 8;
 
 const BEER_BYTE: u8 = 0b1011_0010;
+// Beer byte travels at this fraction of the configured LED speed (slower than
+// the stream, but still scales with it -> servo triggers earlier when faster).
+const BEER_SPEED_DIV: u32 = 4;
 
 #[embassy_executor::task(pool_size = 4)]
 pub async fn run(mut strip: Ws2812) {
@@ -54,8 +57,11 @@ pub async fn run(mut strip: Ws2812) {
         }
         beer_was_on = beer_on;
         if beer_on {
-            beer.overlay(&mut fb);
+            let beer_vel = (control::velocity_q8() / BEER_SPEED_DIV).max(1) as i32;
+            beer.overlay(&mut fb, beer_vel);
             if beer.finished() {
+                // The byte reached the strip end -> the servo (the beer tap).
+                control::signal_beer_arrived();
                 control::clear_beer();
             }
         }

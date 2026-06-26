@@ -9,5 +9,6 @@ pub mod fluid;
 pub mod imu;
 pub mod led_strip;
 pub mod rotary;
+pub mod servo;
 pub mod tilt3d;
 pub mod ui;
