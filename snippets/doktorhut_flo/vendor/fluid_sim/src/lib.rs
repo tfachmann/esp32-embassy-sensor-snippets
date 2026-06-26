@@ -9,17 +9,23 @@ pub mod FluidSimulation {
 
     // doktorhut_flo: non-square 26x14 grid (W x H) to fill the 128x64 panel,
     // sized down from 23x23/800 so the Scene fits the ESP32 RAM budget.
-    static max_particles_setting: usize = 200;
-    static number_of_vertical_cells_setting: usize = 14; // H (also the cell stride)
-    static number_of_horizontal_cells_setting: usize = 26; // W
+    static max_particles_setting: usize = 350;
+    static number_of_vertical_cells_setting: usize = 16; // H (also the cell stride)
+    static number_of_horizontal_cells_setting: usize = 34; // W
     static max_particles_x2_setting: usize = max_particles_setting * 2;
     static number_of_cells_setting: usize =
         number_of_vertical_cells_setting * number_of_horizontal_cells_setting;
     static number_of_cells_x2_setting: usize = number_of_cells_setting * 2;
     static number_of_cells_setting_plus1: usize = number_of_cells_setting + 1;
 
-    static simHeight: f32 = 14.0;
-    static simWidth: f32 = 26.0;
+    // doktorhut_flo: transferVelocities scratch buffers kept in static memory
+    // (not on the task stack -- they are ~4 KB each and would overflow it).
+    // Safe: the sim runs from a single task.
+    static mut TV_F: [f32; number_of_cells_x2_setting] = [0.0; number_of_cells_x2_setting];
+    static mut TV_D: [f32; number_of_cells_x2_setting] = [0.0; number_of_cells_x2_setting];
+
+    static simHeight: f32 = 16.0;
+    static simWidth: f32 = 34.0;
 
     #[derive(PartialEq, Clone, Copy)]
     pub enum CellType {
@@ -702,12 +708,10 @@ pub mod FluidSimulation {
                 let dy = if component == 0 { h2 } else { 0.0 }; // dy is half the cell spacing if component=0 and 0 if not.
 
                 // var f = component == 0 ? this.u : this.v;
-                // on component=0, f is a clone of position (self.u), and on component=1 its a clone of velocity self.v
-                let mut f = if component == 0 {
-                    self.u.clone()
-                } else {
-                    self.v.clone()
-                };
+                // doktorhut_flo: static scratch instead of a stack clone.
+                let f: &mut [f32; number_of_cells_x2_setting] =
+                    unsafe { &mut *core::ptr::addr_of_mut!(TV_F) };
+                f.copy_from_slice(if component == 0 { &self.u } else { &self.v });
                 // var prevF = component == 0 ? this.prevU : this.prevV;
                 // doktorhut_flo: prevF is read-only -> borrow the field, no clone.
                 let prevF = if component == 0 {
@@ -716,12 +720,10 @@ pub mod FluidSimulation {
                     &self.prevV
                 };
                 // var d = component == 0 ? this.du : this.dv;
-                // on component = 0, d is a clone of du (the change in position per time) and for component=1 it's dv (change in velocity over time)
-                let mut d = if component == 0 {
-                    self.du.clone()
-                } else {
-                    self.dv.clone()
-                };
+                // doktorhut_flo: static scratch instead of a stack clone.
+                let d: &mut [f32; number_of_cells_x2_setting] =
+                    unsafe { &mut *core::ptr::addr_of_mut!(TV_D) };
+                d.copy_from_slice(if component == 0 { &self.du } else { &self.dv });
 
                 // for (var i = 0; i < this.numParticles; i++) {
                 // so here there are 2 possibilities:
@@ -897,9 +899,9 @@ pub mod FluidSimulation {
                     }
 		    
 		    if component == 0 {
-			self.u = f;
+			self.u.copy_from_slice(f);
 		    } else {
-			self.v = f
+			self.v.copy_from_slice(f);
 		    }
 
                     // // restore solid cells
@@ -1231,6 +1233,72 @@ pub mod FluidSimulation {
 
             // setObstacle(3.0, 2.0, true);
         }
+
+        /// doktorhut_flo: build the Scene IN PLACE on an already-zeroed `&mut self`
+        /// (no by-value construction -> no ~50KB stack peak). Mirrors setupScene +
+        /// FlipFluid::new, setting only the non-zero fields. Zeroed defaults cover
+        /// every array except `s` (solid mask) and `particlePos` (seed), and the
+        /// scalar fields set below.
+        pub fn setup_in_place(&mut self, particles: i32) {
+            // Scene scalars
+            self.flipRatio = 0.95;
+            self.overRelaxation = 1.9;
+            self.compensateDrift = true;
+            self.separateParticles = true;
+            self.paused = false;
+            self.dt = 1.0 / 60.0;
+            self.numPressureIters = 6;
+            self.numParticleIters = 1;
+            // xGravity / yGravity / frameNr already 0.
+
+            // FlipFluid scalars (width=simWidth, height=simHeight, spacing=h=1).
+            let res = simHeight;
+            let tank_h = simHeight;
+            let tank_w = simWidth;
+            let h = tank_h / res; // = 1
+            let f = &mut self.fluid;
+            f.density = 1000.0;
+            f.fNumX = floorf(tank_w / h);
+            f.fNumY = floorf(tank_h / h);
+            f.h = (tank_w / f.fNumX).max(tank_h / f.fNumY);
+            f.fInvSpacing = 1.0 / f.h;
+            f.fNumCells = f.fNumX * f.fNumY;
+            f.particleRadius = 0.3 * h;
+            f.particleRestDensity = 0.0;
+            f.pInvSpacing = 1.0;
+            f.pNumX = floorf(tank_w * f.pInvSpacing) as i32;
+            f.pNumY = floorf(tank_h * f.pInvSpacing) as i32;
+            f.pNumCells = f.pNumX * f.pNumY;
+            f._maxParticles = particles;
+            f.numParticles = particles;
+
+            // Seed particlePos: a block in the lower-left (must total `particles`).
+            let mut count: usize = 0;
+            for i in 1..15 {
+                for j in 1..26 {
+                    f.particlePos[count * 2] = (j as f32) / 2.0;
+                    f.particlePos[count * 2 + 1] = (i as f32) / 2.0;
+                    count += 1;
+                }
+            }
+
+            // Solid mask: border = solid (0.0), interior = fluid (1.0).
+            let n = f.fNumY as usize;
+            for i in 0..f.fNumX as usize {
+                for j in 0..f.fNumY as usize {
+                    f.s[i * n + j] = if i == 0
+                        || i == f.fNumX as usize - 1
+                        || j == 0
+                        || j == f.fNumY as usize - 1
+                    {
+                        0.0
+                    } else {
+                        1.0
+                    };
+                }
+            }
+        }
+
         pub fn pause(&mut self) {
             self.paused = true;
         }
@@ -1281,10 +1349,10 @@ pub mod FluidSimulation {
         }
         // 26x14 grid -> (W-2) x (H-2) = 24 x 12 visible cells. output[y][x].
         // cell stride = fNumY = number_of_vertical_cells_setting (14).
-        pub fn get_output(&mut self) -> [[bool; 24]; 12] {
-            let mut output_frame: [[bool; 24]; 12] = [[false; 24]; 12];
-            for i in 1..25 {
-                for j in 1..13 {
+        pub fn get_output(&mut self) -> [[bool; 32]; 14] {
+            let mut output_frame: [[bool; 32]; 14] = [[false; 32]; 14];
+            for i in 1..33 {
+                for j in 1..15 {
                     if self.fluid.cellType[i * number_of_vertical_cells_setting + j]
                         == CellType::FLUID_CELL
                     {
