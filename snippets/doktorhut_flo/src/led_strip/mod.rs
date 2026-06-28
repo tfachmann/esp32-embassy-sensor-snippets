@@ -4,6 +4,7 @@ mod driver;
 pub mod effects;
 
 use embassy_time::{Duration, Instant, Timer};
+use libm::{fabsf, sqrtf};
 
 use crate::control;
 pub use driver::{new_rmt, Ws2812};
@@ -46,7 +47,16 @@ pub async fn run(mut strip: Ws2812, role: StripRole) {
     let mut beer_was_on = false;
 
     loop {
+        let now = Instant::now().as_millis() as u32;
         fb.fill([0, 0, 0]);
+
+        // PARTY easter egg overrides every strip with a rainbow.
+        if control::party_on() {
+            party_render(&mut fb, role, now);
+            strip.write(&fb);
+            Timer::after(Duration::from_millis(FRAME_MS)).await;
+            continue;
+        }
 
         match role {
             // IMU strip: the byte stream while the IMU is on, brightness ramping
@@ -110,5 +120,80 @@ pub async fn run(mut strip: Ws2812, role: StripRole) {
 
         strip.write(&fb);
         Timer::after(Duration::from_millis(FRAME_MS)).await;
+    }
+}
+
+/// PARTY: a fast-scrolling rainbow with a tilt-driven overlay. The BEER strip
+/// shows a bright white "gravity ball" (framed by an off-LED on each side for
+/// pop) rolling to the downhill end; the other strips show a "liquid level"
+/// that fills up to the tilt angle. Shake (accel) blends everything white.
+fn party_render(fb: &mut Framebuffer, role: StripRole, now: u32) {
+    let role_off: u32 = match role {
+        StripRole::Beer => 0,
+        StripRole::Imu => 85,
+        StripRole::Music => 170,
+    };
+    let scroll = now / 8; // fast rainbow scroll
+    // Tilt (roll -90..90) -> a position along the 60-LED strip.
+    let roll = control::roll().clamp(-90, 90);
+    let pos = (roll + 90) * (NUM_LEDS as i32 - 1) / 180; // 0..NUM_LEDS-1
+    // Shake -> white blend.
+    let (ax, ay, az) = (control::accel_x(), control::accel_y(), control::accel_z());
+    let mag = fabsf(sqrtf(ax * ax + ay * ay + az * az) - 1.0);
+    let strobe = (mag.clamp(0.0, 1.0) * 255.0) as u32; // 0..255
+    let shift = control::brightness_shift();
+    let ball = role == StripRole::Beer;
+    const BALL_R: i32 = 4; // solid white blob half-width
+    const BALL_GAP: i32 = 2; // off-LEDs framing each side
+
+    for (i, px) in fb.iter_mut().enumerate() {
+        let hue = (scroll + role_off + (i as u32 * 256 / NUM_LEDS as u32)) as u8;
+        let (r0, g0, b0) = hsv_to_rgb(hue, 255, 220);
+        let idx = i as i32;
+
+        // White amount (0..255) and brightness (0..255) from the tilt overlay.
+        let (white, bright) = if ball {
+            let d = (idx - pos).abs();
+            if d <= BALL_R {
+                (255, 255) // solid bright-white ball (high contrast)
+            } else if d <= BALL_R + BALL_GAP {
+                (0, 0) // dark frame on each side so the ball stands out
+            } else {
+                (0, 14) // very dim rainbow background
+            }
+        } else if idx <= pos {
+            (0, 255) // liquid: bright up to the level
+        } else {
+            (0, 45) // liquid: dim above
+        };
+        let bright = bright.max(strobe); // a hard shake lights the whole strip
+        let w = white.max(strobe);
+
+        let mix = |c: u8| -> u8 {
+            let lit = c as u32 * bright / 255; // apply brightness
+            let lifted = lit + (255 - lit) * w / 255; // blend toward white
+            (lifted as u8) >> shift
+        };
+        *px = [mix(r0), mix(g0), mix(b0)];
+    }
+}
+
+/// 8-bit HSV -> RGB (hue 0..255).
+fn hsv_to_rgb(h: u8, s: u8, v: u8) -> (u8, u8, u8) {
+    if s == 0 {
+        return (v, v, v);
+    }
+    let region = (h / 43) as u32;
+    let rem = (h % 43) as u32 * 6; // 0..252
+    let p = (v as u32 * (255 - s as u32) / 255) as u8;
+    let q = (v as u32 * (255 - s as u32 * rem / 255) / 255) as u8;
+    let t = (v as u32 * (255 - s as u32 * (255 - rem) / 255) / 255) as u8;
+    match region {
+        0 => (v, t, p),
+        1 => (q, v, p),
+        2 => (p, v, t),
+        3 => (p, q, v),
+        4 => (t, p, v),
+        _ => (v, p, q),
     }
 }

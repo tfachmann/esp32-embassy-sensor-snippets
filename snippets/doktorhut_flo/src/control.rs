@@ -33,6 +33,7 @@ static IMU_ON: AtomicBool = AtomicBool::new(false);
 static FLUIDS_ON: AtomicBool = AtomicBool::new(false);
 static TILT_ON: AtomicBool = AtomicBool::new(false);
 static MANUAL_ON: AtomicBool = AtomicBool::new(false);
+static PARTY_ON: AtomicBool = AtomicBool::new(false); // hidden easter egg
 
 // Manual servo target (0..4095), driven by the encoder in the BEER MANUAL screen.
 pub const SERVO_MIN: u32 = 0;
@@ -102,6 +103,16 @@ pub fn music_on() -> bool {
 }
 pub fn toggle_music() {
     MUSIC_ON.store(!music_on(), Relaxed);
+}
+pub fn set_music(on: bool) {
+    MUSIC_ON.store(on, Relaxed);
+}
+
+pub fn party_on() -> bool {
+    PARTY_ON.load(Relaxed)
+}
+pub fn set_party(on: bool) {
+    PARTY_ON.store(on, Relaxed);
 }
 
 pub fn imu_on() -> bool {

@@ -16,7 +16,7 @@ use oled_async::prelude::*;
 
 use crate::bus::SharedI2c;
 use crate::ui::ViewScreen;
-use crate::{about, control, fluid, tilt3d, ui};
+use crate::{about, control, fluid, nyancat, tilt3d, ui};
 
 struct FmtBuf {
     buf: [u8; 24],
@@ -162,6 +162,10 @@ pub async fn run(i2c: SharedI2c) {
                 let content = draw_window(&mut display, win, "ABOUT", small, small_inv);
                 about::render(&mut display, text_style, small, content);
             }
+            ViewScreen::Party => {
+                // Hidden easter egg: full-screen nyancat animation.
+                let _ = nyancat::frame(now).draw(&mut display);
+            }
             ViewScreen::BeerManual => {
                 // Normal menu in the background + a small floating dialog on top.
                 render_main_menu(&mut display, &view, small, med, med_inv, now);
@@ -201,7 +205,11 @@ pub async fn run(i2c: SharedI2c) {
         // Fluid runs a bit slower than max to leave the shared timer / cross-core
         // critical section free, so the LED tasks on core1 stay smooth (the sim
         // is real-time regardless via wall-clock substeps). Menus are slow.
-        let frame_ms = if view.screen == ViewScreen::Fluids { 16 } else { 40 };
+        let frame_ms = match view.screen {
+            ViewScreen::Party => 20,
+            ViewScreen::Fluids => 16,
+            _ => 40,
+        };
         Timer::after(Duration::from_millis(frame_ms)).await;
     }
 }

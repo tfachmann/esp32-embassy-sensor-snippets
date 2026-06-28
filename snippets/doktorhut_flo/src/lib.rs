@@ -8,6 +8,7 @@ pub mod display;
 pub mod fluid;
 pub mod imu;
 pub mod led_strip;
+pub mod nyancat;
 pub mod rotary;
 pub mod servo;
 pub mod tilt3d;

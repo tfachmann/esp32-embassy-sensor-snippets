@@ -17,6 +17,7 @@ pub enum Event {
     Left,
     Right,
     Click,
+    Hold, // 3s button hold (easter egg trigger)
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -27,6 +28,7 @@ enum Screen {
     Tilt,
     About,
     BeerManual,
+    Party,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -37,6 +39,7 @@ pub enum ViewScreen {
     Tilt,
     About,
     BeerManual,
+    Party,
 }
 
 pub const MAIN_ITEMS: [&str; 8] = [
@@ -92,6 +95,7 @@ pub fn view() -> View {
                 Screen::Tilt => ViewScreen::Tilt,
                 Screen::About => ViewScreen::About,
                 Screen::BeerManual => ViewScreen::BeerManual,
+                Screen::Party => ViewScreen::Party,
             },
             cursor: ui.cursor,
             editing: ui.editing,
@@ -125,6 +129,7 @@ pub fn on_input(ev: Event) {
                     }
                     _ => {}
                 },
+                Event::Hold => {}
                 }
             }
             Screen::Fluids => {
@@ -142,12 +147,40 @@ pub fn on_input(ev: Event) {
                     ui.cursor = MAIN_TILT;
                 }
             }
-            Screen::About => {
-                if let Event::Click = ev {
+            Screen::About => match ev {
+                Event::Click => {
                     ui.screen = Screen::Main;
                     ui.cursor = MAIN_ABOUT;
                 }
-            }
+                // Hidden easter egg: hold 3s -> PARTY (nyancat + music + party LEDs).
+                Event::Hold => {
+                    control::set_party(true);
+                    control::set_music(true);
+                    control::set_imu(true, now_ms());
+                    ui.screen = Screen::Party;
+                }
+                _ => {}
+            },
+            Screen::Party => match ev {
+                // Rotation adjusts LED brightness + volume together.
+                Event::Right => {
+                    control::brighter();
+                    control::volume_up();
+                }
+                Event::Left => {
+                    control::dimmer();
+                    control::volume_down();
+                }
+                // Click fires the automatic beer pour instantly; exit via 3s hold.
+                Event::Click => control::signal_beer_arrived(),
+                Event::Hold => {
+                    control::set_party(false);
+                    control::set_music(false);
+                    control::set_imu(false, now_ms());
+                    ui.screen = Screen::Main;
+                    ui.cursor = MAIN_ABOUT;
+                }
+            },
             Screen::BeerManual => match ev {
                 // Rotation drives the servo and flows a (fast) beer byte; click exits.
                 Event::Left => {
@@ -163,11 +196,13 @@ pub fn on_input(ev: Event) {
                     ui.screen = Screen::Main;
                     ui.cursor = MAIN_BEERMAN;
                 }
+                Event::Hold => {}
             },
             Screen::Controls if ui.editing => match ev {
                 Event::Left => edit_value(ui.cursor, false),
                 Event::Right => edit_value(ui.cursor, true),
                 Event::Click => ui.editing = false,
+                Event::Hold => {}
             },
             Screen::Controls => match ev {
                 Event::Left => ui.cursor = wrap_prev(ui.cursor, CONTROL_ITEMS.len()),
@@ -180,6 +215,7 @@ pub fn on_input(ev: Event) {
                         ui.editing = true;
                     }
                 }
+                Event::Hold => {}
             },
         }
     });
