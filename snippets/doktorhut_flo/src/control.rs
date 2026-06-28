@@ -16,7 +16,7 @@ const VEL_MIN_Q8: u32 = 8; // ~0.03 LED/frame
 const VEL_MAX_Q8: u32 = 1024; // 4 LED/frame
 
 static SPEED: AtomicU32 = AtomicU32::new(6);
-static VOLUME: AtomicU32 = AtomicU32::new(15);
+static VOLUME: AtomicU32 = AtomicU32::new(24); // 80% of VOLUME_MAX (30)
 static BRIGHTNESS: AtomicU32 = AtomicU32::new(5);
 
 // Process running state (all off at boot). Indices for process_running():

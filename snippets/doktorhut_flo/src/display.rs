@@ -50,7 +50,7 @@ impl Write for FmtBuf {
 pub async fn run(i2c: SharedI2c) {
     let interface = display_interface_i2c::I2CInterface::new(i2c, 0x3C, 0x40);
     let raw_disp = Builder::new(oled_async::displays::sh1106::Sh1106_128_64 {})
-        .with_rotation(DisplayRotation::Rotate0)
+        .with_rotation(DisplayRotation::Rotate180)
         .connect(interface);
     let mut display: GraphicsMode<_, _> = raw_disp.into();
 
@@ -141,8 +141,10 @@ pub async fn run(i2c: SharedI2c) {
             }
             ViewScreen::Fluids => {
                 render_main_menu(&mut display, &view, small, med, med_inv, now);
-                let win = Rectangle::new(Point::new(4, 8), Size::new(100, 52));
+                let win = Rectangle::new(Point::new(4, 4), Size::new(100, 56));
                 let content = draw_window(&mut display, win, "FLUIDS", small, small_inv);
+                // Region is taller than the 24x10 fluid -> the render centers it,
+                // giving a small top (and bottom) padding under the title bar.
                 fluid::step_and_render(
                     scene,
                     &mut display,
@@ -151,7 +153,7 @@ pub async fn run(i2c: SharedI2c) {
                     6,
                     content,
                     96,
-                    58 - content,
+                    60 - content,
                 );
             }
             ViewScreen::About => {
@@ -196,8 +198,10 @@ pub async fn run(i2c: SharedI2c) {
         // Ignore flush errors; the next frame retries.
         let _ = display.flush().await;
 
-        // The fluid wants to run as fast as the flush allows; menus don't.
-        let frame_ms = if view.screen == ViewScreen::Fluids { 2 } else { 40 };
+        // Fluid runs a bit slower than max to leave the shared timer / cross-core
+        // critical section free, so the LED tasks on core1 stay smooth (the sim
+        // is real-time regardless via wall-clock substeps). Menus are slow.
+        let frame_ms = if view.screen == ViewScreen::Fluids { 16 } else { 40 };
         Timer::after(Duration::from_millis(frame_ms)).await;
     }
 }

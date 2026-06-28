@@ -117,10 +117,12 @@ async fn main(spawner: Spawner) {
 
     // The LED strip writes are blocking busy-waits; run them on the second core
     // (APP core) so they never starve the UI tasks above on core0.
+    // Each strip is dedicated to one process: BEER (GPIO25), IMU (GPIO32),
+    // MUSIC (GPIO33).
     let rmt = led_strip::new_rmt(peripherals.RMT);
-    let strip0 = led_strip::Ws2812::new(rmt.channel0, peripherals.GPIO25);
-    let strip1 = led_strip::Ws2812::new(rmt.channel2, peripherals.GPIO32);
-    let strip2 = led_strip::Ws2812::new(rmt.channel4, peripherals.GPIO33);
+    let strip_beer = led_strip::Ws2812::new(rmt.channel0, peripherals.GPIO25);
+    let strip_imu = led_strip::Ws2812::new(rmt.channel2, peripherals.GPIO32);
+    let strip_music = led_strip::Ws2812::new(rmt.channel4, peripherals.GPIO33);
 
     static APP_CORE_STACK: StaticCell<Stack<8192>> = StaticCell::new();
     static APP_EXECUTOR: StaticCell<Executor> = StaticCell::new();
@@ -132,9 +134,10 @@ async fn main(spawner: Spawner) {
         .start_app_core(stack, move || {
             let executor = APP_EXECUTOR.init(Executor::new());
             executor.run(|spawner| {
-                spawner.spawn(led_strip::run(strip0)).ok();
-                spawner.spawn(led_strip::run(strip1)).ok();
-                spawner.spawn(led_strip::run(strip2)).ok();
+                use led_strip::StripRole;
+                spawner.spawn(led_strip::run(strip_beer, StripRole::Beer)).ok();
+                spawner.spawn(led_strip::run(strip_imu, StripRole::Imu)).ok();
+                spawner.spawn(led_strip::run(strip_music, StripRole::Music)).ok();
             });
         })
         .unwrap();

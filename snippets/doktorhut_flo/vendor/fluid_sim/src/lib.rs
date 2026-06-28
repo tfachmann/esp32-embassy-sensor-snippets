@@ -9,9 +9,9 @@ pub mod FluidSimulation {
 
     // doktorhut_flo: non-square 26x14 grid (W x H) to fill the 128x64 panel,
     // sized down from 23x23/800 so the Scene fits the ESP32 RAM budget.
-    static max_particles_setting: usize = 350;
-    static number_of_vertical_cells_setting: usize = 16; // H (also the cell stride)
-    static number_of_horizontal_cells_setting: usize = 34; // W
+    static max_particles_setting: usize = 150;
+    static number_of_vertical_cells_setting: usize = 12; // H (also the cell stride)
+    static number_of_horizontal_cells_setting: usize = 26; // W
     static max_particles_x2_setting: usize = max_particles_setting * 2;
     static number_of_cells_setting: usize =
         number_of_vertical_cells_setting * number_of_horizontal_cells_setting;
@@ -24,8 +24,8 @@ pub mod FluidSimulation {
     static mut TV_F: [f32; number_of_cells_x2_setting] = [0.0; number_of_cells_x2_setting];
     static mut TV_D: [f32; number_of_cells_x2_setting] = [0.0; number_of_cells_x2_setting];
 
-    static simHeight: f32 = 16.0;
-    static simWidth: f32 = 34.0;
+    static simHeight: f32 = 12.0;
+    static simWidth: f32 = 26.0;
 
     #[derive(PartialEq, Clone, Copy)]
     pub enum CellType {
@@ -1274,8 +1274,8 @@ pub mod FluidSimulation {
 
             // Seed particlePos: a block in the lower-left (must total `particles`).
             let mut count: usize = 0;
-            for i in 1..15 {
-                for j in 1..26 {
+            for i in 1..11 {
+                for j in 1..16 {
                     f.particlePos[count * 2] = (j as f32) / 2.0;
                     f.particlePos[count * 2 + 1] = (i as f32) / 2.0;
                     count += 1;
@@ -1349,10 +1349,10 @@ pub mod FluidSimulation {
         }
         // 26x14 grid -> (W-2) x (H-2) = 24 x 12 visible cells. output[y][x].
         // cell stride = fNumY = number_of_vertical_cells_setting (14).
-        pub fn get_output(&mut self) -> [[bool; 32]; 14] {
-            let mut output_frame: [[bool; 32]; 14] = [[false; 32]; 14];
-            for i in 1..33 {
-                for j in 1..15 {
+        pub fn get_output(&mut self) -> [[bool; 24]; 10] {
+            let mut output_frame: [[bool; 24]; 10] = [[false; 24]; 10];
+            for i in 1..25 {
+                for j in 1..11 {
                     if self.fluid.cellType[i * number_of_vertical_cells_setting + j]
                         == CellType::FLUID_CELL
                     {

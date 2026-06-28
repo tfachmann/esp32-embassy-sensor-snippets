@@ -12,7 +12,7 @@ const INST_WRITE: u8 = 0x03;
 const ADDR_GOAL_POSITION: u8 = 0x2A; // register 42, 2 bytes little-endian (0..4095)
 
 // BEER pour sequence (position, then hold this long before the next).
-const SEQUENCE: [u16; 3] = [2000, 1180, 3072];
+const SEQUENCE: [u16; 3] = [2000, 0920, 3072];
 const STEP_MS: u64 = 2000;
 
 /// Frame: 0xFF 0xFF ID LEN INSTR ADDR POS_L POS_H CHECKSUM.

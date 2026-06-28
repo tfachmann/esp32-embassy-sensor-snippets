@@ -10,9 +10,9 @@ use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
 use fluid_sim::FluidSimulation::Scene;
 
-const PARTICLES: i32 = 350; // tune for speed vs. fill (vendored grid seeds 350)
-const GRID_W: usize = 32; // get_output() is 32x14 (vendored 34x16 grid - 2)
-const GRID_H: usize = 14;
+const PARTICLES: i32 = 150; // tune for speed vs. fill (vendored grid seeds 150)
+const GRID_W: usize = 24; // get_output() is 24x10 (vendored 26x12 grid - 2)
+const GRID_H: usize = 10;
 const GRAVITY_SCALE: f32 = 20.0; // accel (g) -> sim gravity (>9.81 = livelier)
 const FLIP_RATIO: f32 = 0.90; // FLIP/PIC blend = viscosity: lower = more viscous
 const MAX_SUBSTEPS: u32 = 6; // clamp so a slow frame can't death-spiral
